@@ -1,8 +1,6 @@
 import { Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import { DEVNET_RPC, payer } from "../config";
-import { RAYDIUM_V4_DEVNET_PROGRAM } from "../adapter/raydium-amm/src";
 import { PumpSwapAdapter } from "../adapter";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 const pumpAmmSwapParam = {
     mainnet: {
@@ -47,7 +45,7 @@ const pumpSwapParamTest = async () => {
     const price = await pumpSwapAdapter.getPrice(reserve)
     console.log(price);
 
-    const minQuoteAmount = pumpSwapAdapter.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
+    const minQuoteAmount = pumpSwapAdapter.getSwapQuote(inputAmount, outPutMintAddr, reserve, 0.0)
 
     console.log(minQuoteAmount);
 
@@ -81,7 +79,6 @@ const pumpSwapParamTest = async () => {
     const sig = await sendAndConfirmTransaction(connection, tx, [payer])
 
     console.log(sig);
-
 }
 
 pumpSwapParamTest()

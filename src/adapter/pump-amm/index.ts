@@ -117,15 +117,14 @@ export class PumpSwapAdapter implements IDexReadAdapter {
         let feeRaw: number, amountInWithFee: number;
         if (inputMint == reserve.token0) {
             reserveIn = reserve.reserveToken0, reserveOut = reserve.reserveToken1
-            feeRaw = baseAmountIn * 25 / 10000;
-            amountInWithFee = baseAmountIn - feeRaw;
+            amountInWithFee = Math.floor(baseAmountIn * 10000 / 100025);
 
             const denominator = reserveIn + amountInWithFee;
 
             const amountOutRaw =
-                Math.floor(Math.floor(reserveOut / denominator) * amountInWithFee);
+                Math.floor(reserveOut / denominator * amountInWithFee);
 
-            const amountOutRawWithSlippage = Math.floor(amountOutRaw * (1 - slippage / 100)) - 1
+            const amountOutRawWithSlippage = amountOutRaw - 2
             return amountOutRawWithSlippage;
         }
         else {
@@ -133,9 +132,11 @@ export class PumpSwapAdapter implements IDexReadAdapter {
 
             let amount_in = Math.floor(baseAmountIn * 10000 / 10025)
 
-            const outTokenAmount = Math.floor((amount_in * reserveOut + reserveIn) / (reserveIn + amount_in)) - 1
+            const outTokenAmount = Math.floor((amount_in * reserveOut + reserveIn) / (reserveIn + amount_in)) 
 
-            return outTokenAmount
+            const outTokenAmountWithSlippage = Math.floor(outTokenAmount * (1 + slippage / 100)) - 1
+
+            return outTokenAmountWithSlippage
         }
 
     }
@@ -168,7 +169,7 @@ export class PumpSwapAdapter implements IDexReadAdapter {
 
         let ix: TransactionInstruction;
 
-        if (inputMint != this.poolInfo?.quote_mint) {
+        if (inputMint == this.poolInfo?.quote_mint) {
             ix = createPumpswapBuyIx({
                 programId: PUMPSWAP_PROGRAM_ADDR,
                 maxQuoteAmountIn: amountIn,
