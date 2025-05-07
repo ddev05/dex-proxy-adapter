@@ -34,7 +34,7 @@ export class RaydiumV4Adapter implements IDexReadAdapter {
         return new RaydiumV4Adapter(connection, cluster, poolInfo);
     }
 
-    async getPoolKeys(): Promise<AmmInfo | null> {
+    getPoolKeys(): AmmInfo | null {
         return this.poolInfo;
     }
 

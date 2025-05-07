@@ -1,5 +1,7 @@
 import { PublicKey } from "@solana/web3.js"
 
+const PUMPSWAP_PROGRAM_ADDR = new PublicKey("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
+
 const PUMPSWAP_DEVNET_FEE_ADDR =
     [
         new PublicKey("12e2F4DKkD3Lff6WPYsU7Xd76SHPEyN9T8XSsTJNF8oT"),
@@ -23,10 +25,13 @@ const PUMPSWAP_MAINNET_FEE_ADDR = [
     new PublicKey("JCRGumoE9Qi5BBgULTgdgTLjSgkCMSbF62ZZfGs84JeU"),
 ]
 
-const PUMPSWAP_GLOBAL_CONFIG_ADDR = new PublicKey("ADyA8hdefvWN2dbGGWFotbzWxrAvLW83WG6QCVXvJKqw")
+const PUMPSWAP_GLOBAL_CONFIG = "global_config";
+const PUMPSWAP_EVENT_AUTH = "__event_authority";
 
 export {
     PUMPSWAP_DEVNET_FEE_ADDR,
     PUMPSWAP_MAINNET_FEE_ADDR,
-    PUMPSWAP_GLOBAL_CONFIG_ADDR
+    PUMPSWAP_PROGRAM_ADDR,
+    PUMPSWAP_GLOBAL_CONFIG,
+    PUMPSWAP_EVENT_AUTH
 }

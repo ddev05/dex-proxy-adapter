@@ -35,7 +35,7 @@ const raydiumV4SwapParamTest = async () => {
     const connection = new Connection(DEVNET_RPC, "processed")
     const rayV4Adapter = await RaydiumV4Adapter.create(connection, poolId, "devnet")
 
-    const poolInfo = await rayV4Adapter.getPoolKeys()
+    const poolInfo = rayV4Adapter.getPoolKeys()
     console.log(poolInfo);
 
     if (!poolInfo?.baseVault || !poolInfo?.quoteVault || !poolInfo.baseMint || !poolInfo.quoteMint) return

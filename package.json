@@ -4,8 +4,9 @@
   "description": "this is adapter for proxy contract to solana legit dex",
   "main": "index.ts",
   "scripts": {
-    "dev": "ts-node src/test/raydium_v4_test.ts",
-    "test": "npm run dev"
+    "ray-amm": "ts-node src/test/raydium_v4_test.ts",
+    "pump-amm": "ts-node src/test/pump_swap_test.ts",
+    "test": "npm run pump-amm"
   },
   "repository": {
     "type": "git",
