@@ -15,7 +15,7 @@ const raydiumV4SwapParam = {
         poolId: "E1jS21jo1yuXaKHkD8qzAxcxD1a5w5LTHJRghzQH8vV7",
         inputMintAddr: "So11111111111111111111111111111111111111112",
         outPutMintAddr: "6RHcynG6VNXZvHkSVgL9XoWW1EmjAz1U3Hvu6JBKDwZH",
-        inputAmount: 0.01 * LAMPORTS_PER_SOL,
+        inputAmount: 0.00001 * LAMPORTS_PER_SOL,
         slippage: 0
     },
     localnet: {
