@@ -1,35 +1,28 @@
 import { Connection, PublicKey, Keypair, TransactionInstruction } from "@solana/web3.js";
 import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
-import { AmmInfo, parseAmmInfo, RAYDIUM_V4_DEVNET_PROGRAM, RAYDIUM_V4_MAINNET_PROGRAM, RaydiumV4SwapAccount } from "./src";
-import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { AmmInfo, parseAmmInfo, RAY_V4_AUTH_SEED, RAYDIUM_V4_DEVNET_PROGRAM, RAYDIUM_V4_MAINNET_PROGRAM, RaydiumV4SwapAccount } from "./src";
+import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { AnchorProvider, BN, Program } from "@coral-xyz/anchor";
 import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
-import idl from "../idl/proxy_contract.json"
-import type { ProxyContract } from "../idl/proxy_contract"
+import { createRayV4SwapBaseInInstruction } from "./src/instructions";
 
 export class RaydiumV4Adapter implements IDexReadAdapter {
     private connection: Connection;
-    private program: Program<ProxyContract>;
     private cluster: "mainnet" | "devnet";
     private poolInfo: AmmInfo | null;
 
     private constructor(
         connection: Connection,
-        program: Program<ProxyContract>,
         cluster: "mainnet" | "devnet",
         poolInfo: AmmInfo | null
     ) {
         this.connection = connection;
-        this.program = program;
         this.cluster = cluster;
         this.poolInfo = poolInfo;
     }
 
     static async create(connection: Connection, poolAddress: string, cluster: "mainnet" | "devnet" = "mainnet") {
-        const wallet = new NodeWallet(Keypair.generate());
-        const provider = new AnchorProvider(connection, wallet);
-        const program = new Program<ProxyContract>(idl as ProxyContract, provider);
         const poolId = new PublicKey(poolAddress);
 
         let poolInfo: AmmInfo | null = null;
@@ -38,7 +31,7 @@ export class RaydiumV4Adapter implements IDexReadAdapter {
             poolInfo = parseAmmInfo(data.data);
         }
 
-        return new RaydiumV4Adapter(connection, program, cluster, poolInfo);
+        return new RaydiumV4Adapter(connection, cluster, poolInfo);
     }
 
     async getPoolKeys(): Promise<AmmInfo | null> {
@@ -73,8 +66,6 @@ export class RaydiumV4Adapter implements IDexReadAdapter {
 
             const baseVaultDecoded = AccountLayout.decode(baseVaultData.data);
             const quoteVaultDecoded = AccountLayout.decode(quoteVaultData.data);
-
-
 
             return {
                 token0: this.poolInfo.baseMint.toBase58(),
@@ -134,16 +125,17 @@ export class RaydiumV4Adapter implements IDexReadAdapter {
         return amountOutRawWithSlippage;
     }
 
-    async getSwapInstruction(
+    getSwapInstruction(
         amountIn: number,
         minAmountOut: number,
         swapAccountkey: RaydiumV4SwapAccount
-    ): Promise<TransactionInstruction> {
+    ): TransactionInstruction {
         const {
             amm,
             ammCoinVault,
             ammPcVault,
             inputMint,
+            ammProgram,
             userSourceOwner,
         } = swapAccountkey;
 
@@ -151,23 +143,42 @@ export class RaydiumV4Adapter implements IDexReadAdapter {
             throw new Error("Pool info not loaded.");
         }
 
-        const ix = await this.program.methods
-            .raydiumV4SwapBaseIn(new BN(amountIn), new BN(minAmountOut))
-            .accounts({
-                amm,
-                ammCoinVault,
-                ammPcVault,
-                ammProgram: this.cluster === "mainnet"
-                    ? RAYDIUM_V4_MAINNET_PROGRAM
-                    : RAYDIUM_V4_DEVNET_PROGRAM,
-                userTokenDestinationMint: inputMint.equals(this.poolInfo.baseMint)
-                    ? this.poolInfo.quoteMint
-                    : this.poolInfo.baseMint,
-                userTokenSourceMint: inputMint,
-                userSourceOwner,
-            })
-            .instruction();
+        let outputMint: PublicKey;
+        if (inputMint == this.poolInfo.quoteMint) {
+            outputMint = this.poolInfo.baseMint
+        } else {
+            outputMint = this.poolInfo.quoteMint
+        }
 
-        return ix;
+        const userSourceTokenAccount = getAssociatedTokenAddressSync(inputMint, userSourceOwner);
+        const userDestinationTokenAccount = getAssociatedTokenAddressSync(outputMint, userSourceOwner);
+
+        const [ammAuthority] = PublicKey.findProgramAddressSync([Buffer.from(RAY_V4_AUTH_SEED)], this.cluster == "mainnet" ? RAYDIUM_V4_MAINNET_PROGRAM : RAYDIUM_V4_DEVNET_PROGRAM);
+
+        const ix = createRayV4SwapBaseInInstruction({
+            programId: ammProgram,
+            amm,
+            ammAuthority,
+            ammOpenOrders: amm,
+            ammTargetOrders: amm,
+            poolCoinTokenAccount: ammCoinVault,
+            poolPcTokenAccount: ammPcVault,
+            serumAsks: amm,
+            serumBids: amm,
+            serumCoinVaultAccount: amm,
+            serumEventQueue: amm,
+            serumMarket: amm,
+            serumPcVaultAccount: amm,
+            serumProgram: amm,
+            serumVaultSigner: amm,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            userSourceTokenAccount,
+            userDestinationTokenAccount,
+            userSourceOwner,
+            amountIn,
+            minimumAmountOut: minAmountOut,
+        })
+
+        return ix
     }
 }

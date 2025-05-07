@@ -28,7 +28,7 @@ const raydiumV4SwapParam = {
 }
 
 
-const raydiumV4SwapParamTest = async () => {
+const pumpSwapParamTest = async () => {
 
     const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = raydiumV4SwapParam.devnet
 
@@ -46,13 +46,13 @@ const raydiumV4SwapParamTest = async () => {
     const price = await rayV4Adapter.getPrice(reserve)
     console.log(price);
 
-    const minQuoteAmount = rayV4Adapter.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
+    const minQuoteAmount = rayV4Adapter.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.25)
 
     console.log(minQuoteAmount);
 
     const tx = new Transaction()
 
-    const ix = rayV4Adapter.getSwapInstruction(inputAmount, minQuoteAmount, {
+    const ix = await rayV4Adapter.getSwapInstruction(inputAmount, minQuoteAmount, {
         amm: new PublicKey(poolId),
         ammCoinVault: poolInfo.baseVault,
         ammPcVault: poolInfo.quoteVault,
@@ -73,4 +73,4 @@ const raydiumV4SwapParamTest = async () => {
 
 }
 
-raydiumV4SwapParamTest()
+pumpSwapParamTest()

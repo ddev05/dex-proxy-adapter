@@ -6,5 +6,5 @@ export abstract class IDexReadAdapter {
   abstract getPoolReserves(): Promise<PoolReserves>;
   abstract getPrice(reserve: PoolReserves): Promise<number>;
   abstract getSwapQuote(inputAmount: number, inputMint: string, reserve: PoolReserves): number;
-  abstract getSwapInstruction(amountIn: number, minAmountOut: number, swapAccountkey: any): Promise<TransactionInstruction>;
+  abstract getSwapInstruction(amountIn: number, minAmountOut: number, swapAccountkey: any): TransactionInstruction;
 }

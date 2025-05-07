@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
-export interface Pool {
+export interface PumpSwapPoolInfo {
     pool_bump: number;
     index: number;
     creator: PublicKey;
@@ -13,10 +13,12 @@ export interface Pool {
 }
 
 
-export interface GlobalConfig {
-    admin: PublicKey;
-    lp_fee_basis_points: bigint;
-    protocol_fee_basis_points: bigint;
-    disable_flags: number;
-    protocol_fee_recipients: PublicKey[];
+export interface PumpSwapAccount {
+    inputMint : PublicKey;
+    pool : PublicKey;
+    baseMint : PublicKey;
+    quoteMint : PublicKey;
+    baseTokenProgram : PublicKey;
+    quoteTokenProgram : PublicKey;
+    user : PublicKey;
 }
