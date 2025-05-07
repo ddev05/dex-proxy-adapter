@@ -14,7 +14,7 @@ const pumpAmmSwapParam = {
         poolId: "H2QbwERVNPPWX568MLdbEqE1wfdEijX8jUYAbKDKtw4X",
         inputMintAddr: "So11111111111111111111111111111111111111112",
         outPutMintAddr: "9eY4FKSmPvYVq5WPUvjcuX8cpDLzMGbgUfPxnxQ8UjzP",
-        inputAmount: 0.0001 * LAMPORTS_PER_SOL,
+        inputAmount: 1 * LAMPORTS_PER_SOL,
         slippage: 0
     },
     localnet: {
@@ -45,7 +45,7 @@ const pumpSwapParamTest = async () => {
     const price = await pumpSwapAdapter.getPrice(reserve)
     console.log(price);
 
-    const minQuoteAmount = pumpSwapAdapter.getSwapQuote(inputAmount, outPutMintAddr, reserve, 0.0)
+    const minQuoteAmount = pumpSwapAdapter.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
 
     console.log(minQuoteAmount);
 
@@ -64,7 +64,7 @@ const pumpSwapParamTest = async () => {
         pool: new PublicKey(poolId),
         baseMint: poolInfo.base_mint,
         quoteMint: poolInfo.quote_mint,
-        inputMint: new PublicKey(outPutMintAddr),
+        inputMint: new PublicKey(inputMintAddr),
         baseTokenProgram: baseAccount.owner,
         quoteTokenProgram: quoteAccount.owner,
         user: payer.publicKey
