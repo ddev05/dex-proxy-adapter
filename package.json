@@ -1,0 +1,33 @@
+{
+  "name": "dex-proxy-contract-adapter",
+  "version": "1.0.0",
+  "description": "this is adapter for proxy contract to solana legit dex",
+  "main": "index.ts",
+  "scripts": {
+    "dev": "ts-node src/test/raydium_v4_test.ts",
+    "test": "npm run dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://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@github.com/vvizardev/dex-proxy-contract-adapter.git"
+  },
+  "keywords": [
+    "dex",
+    "proxy",
+    "contract",
+    "adapter",
+    "solana"
+  ],
+  "author": "vvizardev",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vvizardev/dex-proxy-contract-adapter/issues"
+  },
+  "homepage": "https://github.com/vvizardev/dex-proxy-contract-adapter#readme",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.2",
+    "dotenv": "^16.5.0"
+  }
+}
