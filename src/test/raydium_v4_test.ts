@@ -70,7 +70,6 @@ const raydiumV4SwapParamTest = async () => {
     const sig = await sendAndConfirmTransaction(connection, tx, [payer])
 
     console.log(sig);
-
 }
 
 raydiumV4SwapParamTest()

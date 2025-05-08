@@ -2,8 +2,6 @@ import { Connection, PublicKey, Keypair, TransactionInstruction, SystemProgram }
 import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
 import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { AnchorProvider, BN, Program } from "@coral-xyz/anchor";
-import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 import { createPumpswapBuyIx, createPumpswapSellIx, parsePool, PUMPSWAP_DEVNET_FEE_ADDR, PUMPSWAP_EVENT_AUTH, PUMPSWAP_GLOBAL_CONFIG, PUMPSWAP_MAINNET_FEE_ADDR, PUMPSWAP_PROGRAM_ADDR, PumpSwapAccount, PumpSwapPoolInfo } from "./src";
 
 export class PumpSwapAdapter implements IDexReadAdapter {

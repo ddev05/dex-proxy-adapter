@@ -3,8 +3,6 @@ import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
 import { AmmInfo, parseAmmInfo, RAY_V4_AUTH_SEED, RAYDIUM_V4_DEVNET_PROGRAM, RAYDIUM_V4_MAINNET_PROGRAM, RaydiumV4SwapAccount } from "./src";
 import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { AnchorProvider, BN, Program } from "@coral-xyz/anchor";
-import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 import { createRayV4SwapBaseInInstruction } from "./src/instructions";
 
 export class RaydiumV4Adapter implements IDexReadAdapter {

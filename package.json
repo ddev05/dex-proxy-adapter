@@ -6,7 +6,8 @@
   "scripts": {
     "ray-amm": "ts-node src/test/raydium_v4_test.ts",
     "pump-amm": "ts-node src/test/pump_swap_test.ts",
-    "test": "npm run pump-amm"
+    "pump-clmm": "ts-node src/test/raydium_clmm_test.ts",
+    "test": "npm run pump-clmm"
   },
   "repository": {
     "type": "git",
@@ -26,9 +27,13 @@
   },
   "homepage": "https://github.com/vvizardev/dex-proxy-contract-adapter#readme",
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.1",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
+    "bn.js": "^5.2.2",
+    "bs58": "^6.0.0",
     "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.6"
   }
 }
