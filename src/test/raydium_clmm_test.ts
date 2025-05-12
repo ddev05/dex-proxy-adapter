@@ -8,7 +8,7 @@ const raydiumClmmSwapParam = {
         poolId: "reMcfsACf87GtohH6jvMgf9vKPmn5mtobfpcvkB5XJY",
         inputMintAddr: "So11111111111111111111111111111111111111112",
         outPutMintAddr: "B4fTqWXqA1pQ8tzndSJPW1BH1TZvjKhFsTgTC2ogLhp",
-        inputAmount: 100,
+        inputAmount: 514700,
         slippage: 0
     },
     devnet: {
@@ -46,7 +46,7 @@ const raydiumClmmSwapParamTest = async () => {
     const price = await rayClmmAdapter.getPrice()
     console.log(price);
 
-    const adapterData = rayClmmAdapter.getSwapQuote(inputAmount, inputMintAddr, null, 0.0)
+    const adapterData = rayClmmAdapter.getSwapQuote(inputAmount, outPutMintAddr, null, 0.0)
 
     console.log(adapterData);
 
@@ -62,7 +62,7 @@ const raydiumClmmSwapParamTest = async () => {
 
 
     const ix = rayClmmAdapter.getSwapInstruction(inputAmount, adapterData.amountOut, {
-        inputMint: new PublicKey(inputMintAddr),
+        inputMint: new PublicKey(outPutMintAddr),
         payer: payer.publicKey,
         remainingAccounts: adapterData.remainingAccount,
         xPrice: adapterData.xPrice
