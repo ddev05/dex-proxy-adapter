@@ -1,97 +1,89 @@
 import { Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import { DEVNET_RPC, MAINNET_RPC, payer } from "../config";
-import { parsePoolInfo, parseTickArrayBitmapExtension } from "../adapter/raydium-clmm/src/parse";
 import { RaydiumClmmAdapter } from "../adapter";
-import { getInitializedTickArrayInRange, getTickArrayStartIndexByTick } from "../adapter/raydium-clmm/src/utils/utils";
-import { BN } from "bn.js";
-import { getPdaExBitmapAccount, getPdaTickArrayAddress } from "../adapter/raydium-clmm/src/utils/pda";
-import { RAYDIUM_CLMM_DEVNET_ADDR, RAYDIUM_CLMM_MAINNET_ADDR } from "../adapter/raydium-clmm/src";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 const raydiumClmmSwapParam = {
     mainnet: {
-        poolId: "B4Vwozy1FGtp8SELXSXydWSzavPUGnJ77DURV2k4MhUV",
+        poolId: "reMcfsACf87GtohH6jvMgf9vKPmn5mtobfpcvkB5XJY",
         inputMintAddr: "So11111111111111111111111111111111111111112",
-        outPutMintAddr: "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv",
-        inputAmount: 10 * LAMPORTS_PER_SOL,
+        outPutMintAddr: "B4fTqWXqA1pQ8tzndSJPW1BH1TZvjKhFsTgTC2ogLhp",
+        inputAmount: 100,
         slippage: 0
     },
     devnet: {
         poolId: "99vDLcFwPCFFAusmBNkG8qo8zMxka8hrjp3iPR14BDsb",
         inputMintAddr: "So11111111111111111111111111111111111111112",
         outPutMintAddr: "AMww6tqcaPUq4bVn1W7hKLQmNAe56d1yRFSKtV687uai",
-        inputAmount: 0.00001 * LAMPORTS_PER_SOL,
+        inputAmount: 0.001 * LAMPORTS_PER_SOL,
         slippage: 0
     },
     localnet: {
-        poolId: "B4Vwozy1FGtp8SELXSXydWSzavPUGnJ77DURV2k4MhUV",
+        poolId: "reMcfsACf87GtohH6jvMgf9vKPmn5mtobfpcvkB5XJY",
         inputMintAddr: "So11111111111111111111111111111111111111112",
-        outPutMintAddr: "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv",
+        outPutMintAddr: "B4fTqWXqA1pQ8tzndSJPW1BH1TZvjKhFsTgTC2ogLhp",
         inputAmount: 0.01 * LAMPORTS_PER_SOL,
         slippage: 0
     },
 }
 
-
 const raydiumClmmSwapParamTest = async () => {
+
+    console.log("Payer ", payer.publicKey.toBase58());
+
 
     const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = raydiumClmmSwapParam.mainnet
 
     const connection = new Connection(MAINNET_RPC, "processed")
+    // const connection = new Connection(DEVNET_RPC, "processed")
 
     const rayClmmAdapter = await RaydiumClmmAdapter.create(connection, poolId, "mainnet")
 
-    const poolInfo = rayClmmAdapter.getPoolKeys()
+    const poolInfo = await rayClmmAdapter.getPoolKeys()
 
     console.log(poolInfo);
 
-    // Get the exBitmap address
-    const [exBitmapAddress] = getPdaExBitmapAccount(
-        RAYDIUM_CLMM_MAINNET_ADDR,
-        new PublicKey(poolId),
-    );
+    const price = await rayClmmAdapter.getPrice()
+    console.log(price);
 
-    console.log(exBitmapAddress);
+    const adapterData = rayClmmAdapter.getSwapQuote(inputAmount, inputMintAddr, null, 0.0)
 
-    const exBitmapInfo = await connection.getAccountInfo(exBitmapAddress)
+    console.log(adapterData);
 
-    if (!exBitmapInfo) return
+    const tx = new Transaction()
 
-    const exBitmapInfoData = parseTickArrayBitmapExtension(exBitmapInfo.data)
+    const ataA = getAssociatedTokenAddressSync(rayClmmAdapter.poolInfo.mintA, payer.publicKey)
+    const ataB = getAssociatedTokenAddressSync(rayClmmAdapter.poolInfo.mintB, payer.publicKey)
 
-    console.log(exBitmapInfoData);
-    
+    // const createAtaA = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ataA, payer.publicKey, rayClmmAdapter.poolInfo.mintA)
+    // const createAtaB = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ataB, payer.publicKey, rayClmmAdapter.poolInfo.mintB)
+
+    console.log(inputAmount, adapterData.amountOut);
 
 
-    if (!poolInfo?.tickCurrent || !poolInfo?.tickSpacing) return
+    const ix = rayClmmAdapter.getSwapInstruction(inputAmount, adapterData.amountOut, {
+        inputMint: new PublicKey(inputMintAddr),
+        payer: payer.publicKey,
+        remainingAccounts: adapterData.remainingAccount,
+        xPrice: adapterData.xPrice
+    })
 
-    const currentTickArrayStartIndex = getTickArrayStartIndexByTick(poolInfo?.tickCurrent, poolInfo?.tickSpacing)
+    console.log(adapterData.remainingAccount);
 
-    console.log(currentTickArrayStartIndex);
 
-    const startIndexArray = getInitializedTickArrayInRange(
-        poolInfo.tickArrayBitmap.map(ele => new BN(ele.toString())),
-        exBitmapInfoData,
-        poolInfo.tickSpacing,
-        currentTickArrayStartIndex,
-        7
-    )
+    tx
+    // .add(createAtaA)
+    // .add(createAtaB)
+    tx.add(ix)
 
-    const tickArraysToPoolId: Record<string, string> = {};
+    tx.feePayer = payer.publicKey
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
 
-    const tickArrays = startIndexArray.map(itemIndex => {
-        const [tickArrayAddress] = getPdaTickArrayAddress(
-            RAYDIUM_CLMM_MAINNET_ADDR,
-            new PublicKey(poolId),
-            itemIndex,
-        );
+    console.log(await connection.simulateTransaction(tx));
 
-        tickArraysToPoolId[tickArrayAddress.toString()] = poolId;
+    const sig = await sendAndConfirmTransaction(connection, tx, [payer])
 
-        return { pubkey: tickArrayAddress };
-    });
-
-    console.log(tickArraysToPoolId);
-
+    console.log(sig);
 }
 
 raydiumClmmSwapParamTest()

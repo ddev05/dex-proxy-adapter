@@ -19,6 +19,8 @@ export function createAmmV3SwapV2Instruction({
     otherAmountThreshold,
     sqrtPriceLimitX64,
     isBaseInput,
+    remainingAccounts = [],
+    cluster
 }: {
     programId: PublicKey;
     payer: PublicKey;
@@ -38,45 +40,64 @@ export function createAmmV3SwapV2Instruction({
     otherAmountThreshold: number | bigint;
     sqrtPriceLimitX64: bigint;
     isBaseInput: boolean;
+    remainingAccounts: AccountMeta[],
+    cluster: "mainnet" | "devnet"
 }): TransactionInstruction {
-    const data = Buffer.alloc(1 + 8 + 8 + 16 + 1);
+    const discriminator = Buffer.from([43, 4, 237, 11, 26, 201, 30, 98]);
+
+    const ixData = Buffer.alloc(8 + 8 + 16 + 1);
     let offset = 0;
 
-    // Instruction discriminator (you'll need to check the actual IDL for the correct index)
-    data.writeUInt8(16, offset); // Assuming swapV2 is instruction index 16
-    offset += 1;
-
     // Amount
-    data.writeBigUInt64LE(BigInt(amount), offset);
+    ixData.writeBigUInt64LE(BigInt(amount), offset);
     offset += 8;
 
     // Other amount threshold
-    data.writeBigUInt64LE(BigInt(otherAmountThreshold), offset);
+    ixData.writeBigUInt64LE(BigInt(otherAmountThreshold), offset);
     offset += 8;
 
     // Sqrt price limit
-    data.writeBigUInt64LE(sqrtPriceLimitX64, offset);
+    ixData.writeBigUInt64LE(sqrtPriceLimitX64, offset);
     offset += 16;
 
     // Is base input flag
-    data.writeUInt8(isBaseInput ? 1 : 0, offset);
+    ixData.writeUInt8(isBaseInput ? 1 : 0, offset);
     offset += 1;
 
-    const keys: AccountMeta[] = [
-        { pubkey: payer, isSigner: true, isWritable: false },
-        { pubkey: ammConfig, isSigner: false, isWritable: false },
-        { pubkey: poolState, isSigner: false, isWritable: true },
-        { pubkey: inputTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: outputTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: inputVault, isSigner: false, isWritable: true },
-        { pubkey: outputVault, isSigner: false, isWritable: true },
-        { pubkey: observationState, isSigner: false, isWritable: true },
-        { pubkey: tokenProgram, isSigner: false, isWritable: false },
-        { pubkey: tokenProgram2022, isSigner: false, isWritable: false },
-        { pubkey: memoProgram, isSigner: false, isWritable: false },
-        { pubkey: inputVaultMint, isSigner: false, isWritable: false },
-        { pubkey: outputVaultMint, isSigner: false, isWritable: false },
-    ];
+    const data = Buffer.concat([discriminator, ixData])
+
+    const keys: AccountMeta[] = cluster == "mainnet" ?
+        [
+            { pubkey: payer, isSigner: true, isWritable: true },
+            { pubkey: ammConfig, isSigner: false, isWritable: false },
+            { pubkey: poolState, isSigner: false, isWritable: true },
+            { pubkey: inputTokenAccount, isSigner: false, isWritable: true },
+            { pubkey: outputTokenAccount, isSigner: false, isWritable: true },
+            { pubkey: inputVault, isSigner: false, isWritable: true },
+            { pubkey: outputVault, isSigner: false, isWritable: true },
+            { pubkey: observationState, isSigner: false, isWritable: true },
+            { pubkey: tokenProgram, isSigner: false, isWritable: false },
+            { pubkey: tokenProgram2022, isSigner: false, isWritable: false },
+            { pubkey: memoProgram, isSigner: false, isWritable: false },
+            { pubkey: inputVaultMint, isSigner: false, isWritable: false },
+            { pubkey: outputVaultMint, isSigner: false, isWritable: false },
+            ...remainingAccounts
+        ] : [
+            { pubkey: payer, isSigner: true, isWritable: true },
+            { pubkey: ammConfig, isSigner: false, isWritable: false },
+            { pubkey: poolState, isSigner: false, isWritable: true },
+            { pubkey: outputTokenAccount, isSigner: false, isWritable: true },
+            { pubkey: inputTokenAccount, isSigner: false, isWritable: true },
+            { pubkey: outputVault, isSigner: false, isWritable: true },
+            { pubkey: inputVault, isSigner: false, isWritable: true },
+            { pubkey: observationState, isSigner: false, isWritable: true },
+            { pubkey: tokenProgram, isSigner: false, isWritable: false },
+            { pubkey: tokenProgram2022, isSigner: false, isWritable: false },
+            { pubkey: memoProgram, isSigner: false, isWritable: false },
+            { pubkey: outputVaultMint, isSigner: false, isWritable: false },
+            { pubkey: inputVaultMint, isSigner: false, isWritable: false },
+            ...remainingAccounts
+        ];
 
     return new TransactionInstruction({
         programId,

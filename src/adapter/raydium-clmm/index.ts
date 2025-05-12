@@ -1,26 +1,48 @@
 import { Connection, PublicKey, Keypair, TransactionInstruction, SystemProgram } from "@solana/web3.js";
 import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
-import { MintLayout, NATIVE_MINT } from "@solana/spl-token";
-import { EXTENSION_TICKARRAY_BITMAP_SIZE, parsePoolInfo, PoolInfo, TickArrayBitmapExtensionType } from "./src";
-import { BN } from "bn.js";
+import { AccountLayout, getAssociatedTokenAddressSync, MintLayout, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { AmmConfig, createAmmV3SwapV2Instruction, EXTENSION_TICKARRAY_BITMAP_SIZE, MEMO_PROGRAM_ID, parseAmmConfig, parsePoolInfo, parseTickArrayBitmapExtension, parseTickArrayState, PoolInfo, RAYDIUM_CLMM_DEVNET_ADDR, RAYDIUM_CLMM_MAINNET_ADDR, RaydiumClmmAccountKeys, TickArray, TickArrayBitmapExtension, TickArrayBitmapExtensionType } from "./src";
+import BN from "bn.js";
+import { getInitializedTickArrayInRange, getPdaExBitmapAccount, getPdaTickArrayAddress, getTickArrayStartIndexByTick, sqrtPriceX64ToPrice } from "./src/utils";
+import { computeAmountOut } from "./src/utils/poolUtils";
 
 export class RaydiumClmmAdapter implements IDexReadAdapter {
     private connection: Connection;
     private cluster: "mainnet" | "devnet";
-    private poolInfo: PoolInfo | null;
-
+    private poolId: PublicKey;
+    private exBitmapAddress: PublicKey;
+    public poolInfo: PoolInfo;
+    private tickArrays: PublicKey[];
+    private tickArrayCache: {
+        [key: string]: TickArray;
+    };
+    private exBitmapInfoData: TickArrayBitmapExtension;
     public exTickArrayBitmap: TickArrayBitmapExtensionType;
+    private ammConfig: AmmConfig;
 
     private constructor(
         connection: Connection,
         poolId: PublicKey,
+        exBitmapAddress: PublicKey,
+        poolInfo: PoolInfo,
+        tickArrays: PublicKey[],
+        exBitmapInfoData: TickArrayBitmapExtension,
+        tickArrayCache: {
+            [key: string]: TickArray;
+        },
+        ammConfig: AmmConfig,
         cluster: "mainnet" | "devnet",
-        poolInfo: PoolInfo | null
     ) {
         this.connection = connection;
         this.cluster = cluster;
         this.poolInfo = poolInfo;
+        this.poolId = poolId;
+        this.exBitmapAddress = exBitmapAddress;
+        this.tickArrays = tickArrays;
+        this.tickArrayCache = tickArrayCache;
+        this.exBitmapInfoData = exBitmapInfoData;
+        this.ammConfig = ammConfig;
 
         this.exTickArrayBitmap = {
             poolId: poolId,
@@ -36,13 +58,65 @@ export class RaydiumClmmAdapter implements IDexReadAdapter {
     static async create(connection: Connection, poolAddress: string, cluster: "mainnet" | "devnet" = "mainnet") {
         const poolId = new PublicKey(poolAddress);
 
-        let poolInfo: PoolInfo | null = null;
-        const data = await connection.getAccountInfo(poolId);
-        if (data) {
-            poolInfo = parsePoolInfo(data.data);
+        const raydiumProgramId = cluster == "mainnet" ? RAYDIUM_CLMM_MAINNET_ADDR : RAYDIUM_CLMM_DEVNET_ADDR
+
+        // Get the exBitmap address
+        const [exBitmapAddress] = getPdaExBitmapAccount(
+            raydiumProgramId,
+            new PublicKey(poolId),
+        );
+
+        const [data, exBitmapInfo] = await connection.getMultipleAccountsInfo([poolId, exBitmapAddress])
+
+        if (!data || !exBitmapInfo) {
+            throw new Error("Eror in creating Adapter");
         }
 
-        return new RaydiumClmmAdapter(connection, poolId, cluster, poolInfo);
+        const poolInfo = parsePoolInfo(data.data);
+        const exBitmapInfoData = parseTickArrayBitmapExtension(exBitmapInfo.data)
+
+
+
+        const currentTickArrayStartIndex = getTickArrayStartIndexByTick(poolInfo?.tickCurrent, poolInfo?.tickSpacing)
+
+        const startIndexArray = getInitializedTickArrayInRange(
+            poolInfo.tickArrayBitmap.map(ele => new BN(ele.toString())),
+            exBitmapInfoData,
+            poolInfo.tickSpacing,
+            currentTickArrayStartIndex,
+            7
+        )
+
+        const tickArrays = startIndexArray.map(itemIndex => {
+            const [tickArrayAddress] = getPdaTickArrayAddress(
+                raydiumProgramId,
+                new PublicKey(poolId),
+                itemIndex,
+            );
+            return tickArrayAddress;
+        });
+
+        const newData = await connection.getMultipleAccountsInfo([poolInfo.ammConfig, ...tickArrays])
+
+        const ammConfigRawData = newData[0]
+        const tickArraysData = newData.slice(1)
+
+        if (!ammConfigRawData?.data) {
+            throw new Error("Error in creating Adapter")
+        }
+
+        const ammConfig = parseAmmConfig(ammConfigRawData?.data)
+
+        const tickArrayCache: { [key: string]: TickArray } = tickArraysData.reduce((acc, ele, idx) => {
+            if (!ele) return acc;
+
+            const parsed = parseTickArrayState(ele.data);
+            acc[parsed.startTickIndex] = parsed;
+
+            return acc;
+        }, {} as { [key: string]: TickArray });
+
+        return new RaydiumClmmAdapter(connection, poolId, exBitmapAddress, poolInfo, tickArrays, exBitmapInfoData, tickArrayCache, ammConfig, cluster);
     }
 
     getPoolKeys(): PoolInfo | null {
@@ -51,76 +125,107 @@ export class RaydiumClmmAdapter implements IDexReadAdapter {
 
     async getPoolReserves(
     ): Promise<PoolReserves> {
+        const data = await this.connection.getAccountInfo(this.poolId);
+        if (data) {
+            this.poolInfo = parsePoolInfo(data.data);
+            const [vaultAData, vaultBData] = await this.connection.getMultipleAccountsInfo([this.poolInfo.vaultA, this.poolInfo.vaultB])
 
-        return {
-            token0: "",
-            token1: "",
-            reserveToken0: 0,
-            reserveToken1: 0
-        };
-    }
+            if (!vaultAData || !vaultBData) {
+                return {
+                    token0: "",
+                    token1: "",
+                    reserveToken0: 0,
+                    reserveToken1: 0
+                };
+            }
 
-    async getPrice(reserve: PoolReserves): Promise<number> {
-        const { reserveToken0: reserveBase, reserveToken1: reserveQuote } = reserve;
+            const reserveA = AccountLayout.decode(vaultAData.data).amount
+            const reserveB = AccountLayout.decode(vaultBData.data).amount
 
-        if (!this.poolInfo) return 0;
-
-        const [baseMintInfo, quoteMintInfo] = await this.connection.getMultipleAccountsInfo([
-            this.poolInfo.mintA,
-            this.poolInfo.mintB
-        ]);
-
-        if (!baseMintInfo || !quoteMintInfo) return 0;
-
-        const baseMintParsedInfo = MintLayout.decode(baseMintInfo.data);
-        const quoteMintParsedInfo = MintLayout.decode(quoteMintInfo.data);
-
-        const reserveUIBase = reserveBase / 10 ** baseMintParsedInfo.decimals;
-        const reserveUIQuote = reserveQuote / 10 ** quoteMintParsedInfo.decimals;
-
-        if (this.poolInfo.mintB.toBase58() == NATIVE_MINT.toBase58()) {
-            return reserveUIQuote / reserveUIBase;
+            return {
+                token0: this.poolInfo.mintA.toBase58(),
+                token1: this.poolInfo.mintB.toBase58(),
+                reserveToken0: Number(reserveA),
+                reserveToken1: Number(reserveB)
+            };
         } else {
-            return reserveUIBase / reserveUIQuote;
+            return {
+                token0: "",
+                token1: "",
+                reserveToken0: 0,
+                reserveToken1: 0
+            };
         }
     }
 
-    getSwapQuote(baseAmountIn: number, inputMint: string, reserve: PoolReserves, slippage: number = 0): number {
-        let reserveIn: number, reserveOut: number
-        if (inputMint == reserve.token0) { reserveIn = reserve.reserveToken0, reserveOut = reserve.reserveToken1 }
-        else { reserveOut = reserve.reserveToken0, reserveIn = reserve.reserveToken1 }
-        const feeRaw = baseAmountIn * 25 / 10000;
-        const amountInWithFee = baseAmountIn - feeRaw;
-
-        const denominator = reserveIn + amountInWithFee;
-
-        const amountOutRaw =
-            Math.floor((Number(reserveOut) / Number(denominator)) * Number(amountInWithFee));
-
-        const amountOutRawWithSlippage = Math.floor(amountOutRaw * (1 - slippage / 100))
-        return amountOutRawWithSlippage;
+    async getPrice(): Promise<number> {
+        if (this.poolInfo?.sqrtPriceX64) {
+            const price = sqrtPriceX64ToPrice(new BN(this.poolInfo?.sqrtPriceX64.toString()), this.poolInfo?.mintDecimalsA, this.poolInfo?.mintDecimalsB)
+            return Number(price.toString())
+        } else {
+            return 0
+        }
     }
 
-    getSwapInstruction(amountIn: number, minAmountOut: number, swapAccountkey: any): TransactionInstruction {
-        const ix: TransactionInstruction = new TransactionInstruction({
-            keys: [
-                {
-                    isSigner: false,
-                    isWritable: false,
-                    pubkey: SystemProgram.programId
-                }
-            ],
-            programId: SystemProgram.programId,
-        });
+    getSwapQuote(baseAmountIn: number, inputMint: string, reserve: PoolReserves | null, slippage: number = 0): { amountOut: number, remainingAccount: PublicKey[], xPrice: BN } {
+        const returnData = computeAmountOut({
+            amountIn: new BN(baseAmountIn),
+            baseMint: new PublicKey(inputMint),
+            poolInfo: this.poolInfo,
+            poolId: this.poolId,
+            slippage,
+            tickArrayCache: this.tickArrayCache,
+            tickArrayBitmap: this.poolInfo.tickArrayBitmap.map(ele => new BN(ele.toString())),
+            exBitmapInfo: this.exBitmapInfoData,
+            tradeFeeRate: this.ammConfig.tradeFeeRate,
+            cluster: this.cluster
+        })
+
+        return { amountOut: Number(returnData.minAmountOut), remainingAccount: [this.exBitmapAddress, ...returnData.remainingAccounts], xPrice: new BN(returnData.executionPriceX64) }
+    }
+
+    getSwapInstruction(
+        amountIn: number,
+        minAmountOut: number,
+        swapAccountkey: RaydiumClmmAccountKeys
+    ): TransactionInstruction {
+        const {
+            inputMint,
+            payer
+        } = swapAccountkey
+
+        if (!this.poolInfo) {
+            throw new Error("Pool info not loaded.");
+        }
+
+        const { ammConfig, } = this.poolInfo
+
+        const ataA = getAssociatedTokenAddressSync(this.poolInfo.mintA, payer)
+        const ataB = getAssociatedTokenAddressSync(this.poolInfo.mintB, payer)
+
+        const ix = createAmmV3SwapV2Instruction({
+            ammConfig,
+            poolState: this.poolId,
+            inputVaultMint: inputMint == this.poolInfo.mintA ? this.poolInfo.mintA : this.poolInfo.mintB,
+            outputVaultMint: inputMint != this.poolInfo.mintA ? this.poolInfo.mintA : this.poolInfo.mintB,
+            inputVault: inputMint == this.poolInfo.mintA ? this.poolInfo.vaultA : this.poolInfo.vaultB,
+            outputVault: inputMint != this.poolInfo.mintA ? this.poolInfo.vaultA : this.poolInfo.vaultB,
+            observationState: this.poolInfo.observationId,
+            inputTokenAccount: inputMint == this.poolInfo.mintA ? ataA : ataB,
+            outputTokenAccount: inputMint != this.poolInfo.mintA ? ataA : ataB,
+            payer,
+            memoProgram: MEMO_PROGRAM_ID,
+            programId: this.cluster == "mainnet" ? RAYDIUM_CLMM_MAINNET_ADDR : RAYDIUM_CLMM_DEVNET_ADDR,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            tokenProgram2022: TOKEN_2022_PROGRAM_ID,
+            amount: amountIn,
+            otherAmountThreshold: minAmountOut,
+            sqrtPriceLimitX64: BigInt(0),
+            isBaseInput: true,
+            remainingAccounts: swapAccountkey.remainingAccounts ? swapAccountkey.remainingAccounts.map(pubkey => { return { pubkey: pubkey, isSigner: false, isWritable: true } }) : [],
+            cluster: this.cluster
+        })
 
         return ix
     }
-
-    // getSwapInstruction(
-    //     amountIn: number,
-    //     minAmountOut: number,
-    //     swapAccountkey: RaydiumV4SwapAccount
-    // ): TransactionInstruction {
-
-    // }
 }
