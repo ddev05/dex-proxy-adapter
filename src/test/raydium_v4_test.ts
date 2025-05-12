@@ -27,7 +27,6 @@ const raydiumV4SwapParam = {
     },
 }
 
-
 const raydiumV4SwapParamTest = async () => {
 
     const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = raydiumV4SwapParam.devnet

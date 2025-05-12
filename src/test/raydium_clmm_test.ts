@@ -1,7 +1,8 @@
-import { Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
+import { Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from "@solana/web3.js";
 import { DEVNET_RPC, MAINNET_RPC, payer } from "../config";
 import { RaydiumClmmAdapter } from "../adapter";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { parseBondingCurve, PUMPFUN_PROGRAM_ID } from "../adapter/pumpfun/src";
 
 const raydiumClmmSwapParam = {
     mainnet: {
@@ -27,7 +28,20 @@ const raydiumClmmSwapParam = {
     },
 }
 
+function findCreatorVaultPDA(bondingCurveCreator: PublicKey, programId: PublicKey) {
+    const seed1 = Buffer.from('creator-vault'); // const seed
+    const seed2 = bondingCurveCreator.toBuffer(); // public key seed
+
+    const [pda, bump] = PublicKey.findProgramAddressSync(
+        [seed1, seed2,],
+        programId
+    );
+
+    return { pda, bump };
+}
 const raydiumClmmSwapParamTest = async () => {
+
+    // findCreatorVaultPDA()
 
     console.log("Payer ", payer.publicKey.toBase58());
 

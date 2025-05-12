@@ -6,8 +6,9 @@
   "scripts": {
     "ray-amm": "ts-node src/test/raydium_v4_test.ts",
     "pump-amm": "ts-node src/test/pump_swap_test.ts",
-    "pump-clmm": "ts-node src/test/raydium_clmm_test.ts",
-    "test": "npm run pump-clmm"
+    "ray-clmm": "ts-node src/test/raydium_clmm_test.ts",
+    "pump-fun": "ts-node src/test/pump_fun_test.ts",
+    "test": "npm run pump-fun"
   },
   "repository": {
     "type": "git",
