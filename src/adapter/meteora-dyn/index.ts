@@ -1,23 +1,26 @@
 import { Connection, PublicKey, Keypair, TransactionInstruction, SystemProgram } from "@solana/web3.js";
 import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
-import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { MeteoraPoolInfo, MeteoraSwapAccount, parsePoolAccount } from "./src";
-import { createMeteoraBuyIx } from "./src/instructions";
+import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { MeteoraPoolInfo, MeteoraSwapAccount, parsePoolAccount, VAULT_WITH_NON_PDA_BASED_LP_MINT } from "./src";
+import { LP_MINT_PREFIX, METEORA_PROGRAM_ADDR, METEORA_VAULT_PROGRAM, TOKEN_VAULT_PREFIX, createMeteoraSwapInstruction } from "./src";
 
 export class MeteoraDynAdapter implements IDexReadAdapter {
     private connection: Connection;
     private cluster: "mainnet" | "devnet";
 
     private poolInfo: MeteoraPoolInfo | null
+    private pool: PublicKey;
 
     private constructor(
         connection: Connection,
         cluster: "mainnet" | "devnet",
-        poolInfo: MeteoraPoolInfo | null
+        poolInfo: MeteoraPoolInfo | null,
+        pool: PublicKey
     ) {
         this.connection = connection;
         this.cluster = cluster;
+        this.pool = pool;
         this.poolInfo = poolInfo;
     }
 
@@ -30,7 +33,7 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
             poolInfo = parsePoolAccount(data.data);
         }
 
-        return new MeteoraDynAdapter(connection, cluster, poolInfo);
+        return new MeteoraDynAdapter(connection, cluster, poolInfo, poolId);
     }
 
     getPoolKeys(): MeteoraPoolInfo | null {
@@ -50,8 +53,8 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
             }
 
             const [baseVaultData, quoteVaultData] = await this.connection.getMultipleAccountsInfo([
-                this.poolInfo.aVault,
-                this.poolInfo.bVault,
+                this.poolInfo.aVaultLp,
+                this.poolInfo.bVaultLp,
             ]);
 
             if (!baseVaultData || !quoteVaultData) {
@@ -101,7 +104,7 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
         const reserveUIBase = reserveBase / 10 ** baseMintParsedInfo.decimals;
         const reserveUIQuote = reserveQuote / 10 ** quoteMintParsedInfo.decimals;
 
-        if (this.poolInfo.tokenAMint.toBase58() == NATIVE_MINT.toBase58()) {
+        if (this.poolInfo.tokenAMint.toBase58() != NATIVE_MINT.toBase58()) {
             return reserveUIQuote / reserveUIBase;
         } else {
             return reserveUIBase / reserveUIQuote;
@@ -118,7 +121,7 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
 
             const amountOutWithFee = Math.floor(amountOut * 0.9975)
             const amountOutWithFeeSlippage = Math.floor(amountOutWithFee * (1 - slippage / 100))
-            
+
             return amountOutWithFeeSlippage
         }
         else {
@@ -142,74 +145,67 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
         amountOut: number,
         swapAccountkey: MeteoraSwapAccount
     ): TransactionInstruction {
-        const {
-            baseMint,
-            baseTokenProgram,
-            inputMint,
-            pool,
-            quoteMint,
-            quoteTokenProgram,
-            user
-        } = swapAccountkey
 
-        const [globalConfig] = PublicKey.findProgramAddressSync([Buffer.from(PUMPSWAP_GLOBAL_CONFIG)], PUMPSWAP_PROGRAM_ADDR)
-        const [eventAuthority] = PublicKey.findProgramAddressSync([Buffer.from(PUMPSWAP_EVENT_AUTH)], PUMPSWAP_PROGRAM_ADDR)
+        if (!this.poolInfo) throw new Error("Pool Info is not loaded yet")
+        const { inputMint, user } = swapAccountkey
+        const { aVault, aVaultLp, bVault, bVaultLp, protocolTokenBFee } = this.poolInfo
+        const [aTokenVault] = PublicKey.findProgramAddressSync([Buffer.from(TOKEN_VAULT_PREFIX), aVault.toBuffer()], METEORA_VAULT_PROGRAM)
+        const [bTokenVault] = PublicKey.findProgramAddressSync([Buffer.from(TOKEN_VAULT_PREFIX), bVault.toBuffer()], METEORA_VAULT_PROGRAM)
 
-        const protocolFeeRecipient = this.cluster == "mainnet" ? PUMPSWAP_MAINNET_FEE_ADDR[0] : PUMPSWAP_DEVNET_FEE_ADDR[0]
-        const protocolFeeRecipientTokenAccount = getAssociatedTokenAddressSync(NATIVE_MINT, protocolFeeRecipient, true);
+        console.log()
 
-        const poolBaseTokenAccount = getAssociatedTokenAddressSync(baseMint, pool, true)
-        const poolQuoteTokenAccount = getAssociatedTokenAddressSync(quoteMint, pool, true)
-        const userBaseTokenAccount = getAssociatedTokenAddressSync(baseMint, user)
-        const userQuoteTokenAccount = getAssociatedTokenAddressSync(quoteMint, user)
+        const [aVaultLpMint] = VAULT_WITH_NON_PDA_BASED_LP_MINT[aVault.toBase58()] == undefined ? PublicKey.findProgramAddressSync([Buffer.from(LP_MINT_PREFIX), aVault.toBuffer()], METEORA_VAULT_PROGRAM) : [VAULT_WITH_NON_PDA_BASED_LP_MINT[aVault.toBase58()]];
+        const [bVaultLpMint] = VAULT_WITH_NON_PDA_BASED_LP_MINT[bVault.toBase58()] == undefined ? PublicKey.findProgramAddressSync([Buffer.from(LP_MINT_PREFIX), bVault.toBuffer()], METEORA_VAULT_PROGRAM) : [VAULT_WITH_NON_PDA_BASED_LP_MINT[bVault.toBase58()]];
 
-        let ix: TransactionInstruction;
+        const outputMint = this.poolInfo.tokenAMint == inputMint ? this.poolInfo.tokenBMint : this.poolInfo.tokenAMint
 
-        if (inputMint.toBase58() === this.poolInfo?.tokenAMint.toBase58()) {
-            ix = createMeteoraBuyIx({
-                programId: PUMPSWAP_PROGRAM_ADDR,
-                maxQuoteAmountIn: amountIn,
-                baseAmountOut: amountOut,
-                globalConfig,
-                eventAuthority,
-                protocolFeeRecipient,
-                protocolFeeRecipientTokenAccount,
-                baseMint,
-                quoteMint,
-                pool,
-                poolBaseTokenAccount,
-                poolQuoteTokenAccount,
-                userBaseTokenAccount,
-                userQuoteTokenAccount,
+        const userSourceToken = getAssociatedTokenAddressSync(inputMint, user)
+        const userDestinationToken = getAssociatedTokenAddressSync(outputMint, user)
+
+        console.log({
+            programId: METEORA_PROGRAM_ADDR,
+            pool: this.pool,
+            userSourceToken,
+            userDestinationToken,
+            aVault,
+            bVault,
+            aTokenVault,
+            bTokenVault,
+            aVaultLpMint,
+            bVaultLpMint,
+            aVaultLp,
+            bVaultLp,
+            protocolTokenFee: protocolTokenBFee,
+            user,
+            vaultProgram: METEORA_VAULT_PROGRAM,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            inAmount: amountIn,
+            minimumOutAmount: amountOut,
+        });
+
+
+        const ix = createMeteoraSwapInstruction(
+            {
+                programId: METEORA_PROGRAM_ADDR,
+                pool: this.pool,
+                userSourceToken,
+                userDestinationToken,
+                aVault,
+                bVault,
+                aTokenVault,
+                bTokenVault,
+                aVaultLpMint,
+                bVaultLpMint,
+                aVaultLp,
+                bVaultLp,
+                protocolTokenFee: protocolTokenBFee,
                 user,
-                baseTokenProgram,
-                quoteTokenProgram,
-                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                systemProgram: SystemProgram.programId,
-            })
-        } else {
-            ix = createPumpswapSellIx({
-                programId: PUMPSWAP_PROGRAM_ADDR,
-                baseAmountIn: amountIn,
-                minQuoteAmountOut: amountOut,
-                globalConfig,
-                eventAuthority,
-                protocolFeeRecipient,
-                protocolFeeRecipientTokenAccount,
-                baseMint,
-                quoteMint,
-                pool,
-                poolBaseTokenAccount,
-                poolQuoteTokenAccount,
-                userBaseTokenAccount,
-                userQuoteTokenAccount,
-                user,
-                baseTokenProgram,
-                quoteTokenProgram,
-                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                systemProgram: SystemProgram.programId,
-            })
-        }
+                vaultProgram: METEORA_VAULT_PROGRAM,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                inAmount: amountIn,
+                minimumOutAmount: amountOut,
+            }
+        )
 
         return ix;
     }

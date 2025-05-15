@@ -41,15 +41,10 @@ export interface MeteoraPoolInfo {
   totalLockedLp: BigNumber;
   bootstrapping: BootstrappingInfo;
   partnerInfo: PartnerInfo;
-  curveType: 'constantProduct' | 'unknown';
+  curveType: 'constantProduct' | 'stable';
 }
 
 export interface MeteoraSwapAccount {
     inputMint : PublicKey;
-    pool : PublicKey;
-    baseMint : PublicKey;
-    quoteMint : PublicKey;
-    baseTokenProgram : PublicKey;
-    quoteTokenProgram : PublicKey;
     user : PublicKey;
 }

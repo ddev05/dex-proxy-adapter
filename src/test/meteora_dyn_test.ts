@@ -1,8 +1,11 @@
 import { Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import { DEVNET_RPC, MAINNET_RPC, payer } from "../config";
 import { parsePoolAccount } from "../adapter/meteora-dyn/src/parse";
+import { LP_MINT_PREFIX, METEORA_VAULT_PROGRAM, TOKEN_VAULT_PREFIX } from "../adapter/meteora-dyn/src/constants";
+import { MeteoraDynAdapter } from "../adapter/meteora-dyn";
+import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 
-const pumpFunParam = {
+const meteoraDynParam = {
     mainnet: {
         poolId: "B1AdQ85N2mJ2xtMg9bgThhsPoA6T3M26rt4TChWSiPpr",
         inputMintAddr: "So11111111111111111111111111111111111111112",
@@ -29,19 +32,51 @@ const pumpFunParam = {
 
 const meteoraDynTest = async () => {
 
-    const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = pumpFunParam.mainnet
+    console.log(payer.publicKey.toBase58());
+    
+
+    const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = meteoraDynParam.mainnet
 
     const connection = new Connection(MAINNET_RPC, "processed")
 
-    const data = await connection.getAccountInfo(new PublicKey(poolId))
+    const meteoraAdapter = await MeteoraDynAdapter.create(connection, poolId, "mainnet")
 
-    if (!data) {
-        return
-    }
+     const poolInfo = meteoraAdapter.getPoolKeys()
+    console.log(poolInfo);
 
-    const praseData = parsePoolAccount(data?.data)
+    const reserve = await meteoraAdapter.getPoolReserves()
+    console.log(reserve);
 
-    console.log(JSON.stringify(praseData , null , 2));
+    const price = await meteoraAdapter.getPrice(reserve)
+    console.log(price);
+
+    const minQuoteAmount = meteoraAdapter.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
+
+    console.log(minQuoteAmount);
+
+    //  const ata = getAssociatedTokenAddressSync(new PublicKey(outPutMintAddr), payer.publicKey)
+    // const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey , ata , payer.publicKey , new PublicKey(outPutMintAddr))
+    
+    console.log(minQuoteAmount);
+
+    const tx = new Transaction()
+
+    const ix = await meteoraAdapter.getSwapInstruction(inputAmount, minQuoteAmount, {
+        inputMint: new PublicKey(inputMintAddr),
+        user: payer.publicKey
+    })
+
+    // tx.add(ataIx)
+    tx.add(ix)
+
+    tx.feePayer = payer.publicKey
+
+    console.log(await connection.simulateTransaction(tx));
+
+    const sig = await sendAndConfirmTransaction(connection, tx, [payer] , {skipPreflight : true})
+
+    console.log(sig);
+
 }
 
 meteoraDynTest()

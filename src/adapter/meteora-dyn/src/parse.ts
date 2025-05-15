@@ -91,7 +91,7 @@ export function parsePoolAccount(buf: Buffer): MeteoraPoolInfo {
     offset += 8 * 21; // padding2 (u64[21])
 
     const curveTag = readU8(buf, offset); offset += 1;
-    const curveType = curveTag === 0 ? 'constantProduct' : 'unknown';
+    const curveType = curveTag === 0 ? 'constantProduct' : 'stable';
 
     return {
         lpMint,

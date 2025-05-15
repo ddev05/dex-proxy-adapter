@@ -1,4 +1,4 @@
-// export * from "./constants"
+export * from "./constants"
 export * from "./parse"
 export * from "./types"
-// export * from "./instruction"
+export * from "./instructions"

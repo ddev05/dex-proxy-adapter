@@ -2,152 +2,86 @@ import {
     PublicKey,
     TransactionInstruction,
     AccountMeta,
-} from "@solana/web3.js";
+} from '@solana/web3.js';
 
-export function createMeteoraBuyIx({
+/**
+ * Creates a TransactionInstruction for swapping tokens on Meteora's DLMM.
+ *
+ * @param params - The parameters required to construct the instruction.
+ * @returns A TransactionInstruction object ready to be added to a transaction.
+ */
+export function createMeteoraSwapInstruction({
     programId,
     pool,
+    userSourceToken,
+    userDestinationToken,
+    aVault,
+    bVault,
+    aTokenVault,
+    bTokenVault,
+    aVaultLpMint,
+    bVaultLpMint,
+    aVaultLp,
+    bVaultLp,
+    protocolTokenFee,
     user,
-    globalConfig,
-    baseMint,
-    quoteMint,
-    userBaseTokenAccount,
-    userQuoteTokenAccount,
-    poolBaseTokenAccount,
-    poolQuoteTokenAccount,
-    protocolFeeRecipient,
-    protocolFeeRecipientTokenAccount,
-    baseTokenProgram,
-    quoteTokenProgram,
-    systemProgram,
-    associatedTokenProgram,
-    eventAuthority,
-    baseAmountOut,
-    maxQuoteAmountIn,
+    vaultProgram,
+    tokenProgram,
+    inAmount,
+    minimumOutAmount,
 }: {
     programId: PublicKey;
     pool: PublicKey;
+    userSourceToken: PublicKey;
+    userDestinationToken: PublicKey;
+    aVault: PublicKey;
+    bVault: PublicKey;
+    aTokenVault: PublicKey;
+    bTokenVault: PublicKey;
+    aVaultLpMint: PublicKey;
+    bVaultLpMint: PublicKey;
+    aVaultLp: PublicKey;
+    bVaultLp: PublicKey;
+    protocolTokenFee: PublicKey;
     user: PublicKey;
-    globalConfig: PublicKey;
-    baseMint: PublicKey;
-    quoteMint: PublicKey;
-    userBaseTokenAccount: PublicKey;
-    userQuoteTokenAccount: PublicKey;
-    poolBaseTokenAccount: PublicKey;
-    poolQuoteTokenAccount: PublicKey;
-    protocolFeeRecipient: PublicKey;
-    protocolFeeRecipientTokenAccount: PublicKey;
-    baseTokenProgram: PublicKey;
-    quoteTokenProgram: PublicKey;
-    systemProgram: PublicKey;
-    associatedTokenProgram: PublicKey;
-    eventAuthority: PublicKey;
-    baseAmountOut: number | bigint;
-    maxQuoteAmountIn: number | bigint;
+    vaultProgram: PublicKey;
+    tokenProgram: PublicKey;
+    inAmount: number;
+    minimumOutAmount: number;
 }): TransactionInstruction {
-    const discriminator = Buffer.from([102, 6, 61, 18, 1, 218, 235, 234]);
-    const baseOut = Buffer.alloc(8);
-    const maxQuoteIn = Buffer.alloc(8);
-    baseOut.writeBigUInt64LE(BigInt(baseAmountOut));
-    maxQuoteIn.writeBigUInt64LE(BigInt(maxQuoteAmountIn));
-    const data = Buffer.concat([discriminator, baseOut, maxQuoteIn]);
+    // Instruction discriminator for 'swap' (first 8 bytes of SHA256 hash of "global:swap")
+    const discriminator = Buffer.from([248, 198, 158, 145, 225, 117, 135, 200]);
 
+    // Serialize inAmount and minimumOutAmount as little-endian u64
+    const inAmountBuffer = Buffer.alloc(8);
+    inAmountBuffer.writeBigUInt64LE(BigInt(inAmount));
+
+    const minOutAmountBuffer = Buffer.alloc(8);
+    minOutAmountBuffer.writeBigUInt64LE(BigInt(minimumOutAmount));
+
+    // Concatenate discriminator and serialized amounts to form instruction data
+    const data = Buffer.concat([discriminator, inAmountBuffer, minOutAmountBuffer]);
+
+    // Define the list of accounts required by the instruction
     const keys: AccountMeta[] = [
-        { pubkey: pool, isSigner: false, isWritable: false },
-        { pubkey: user, isSigner: true, isWritable: true },
-        { pubkey: globalConfig, isSigner: false, isWritable: false },
-        { pubkey: baseMint, isSigner: false, isWritable: false },
-        { pubkey: quoteMint, isSigner: false, isWritable: false },
-        { pubkey: userBaseTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: userQuoteTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: poolBaseTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: poolQuoteTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
-        { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: baseTokenProgram, isSigner: false, isWritable: false },
-        { pubkey: quoteTokenProgram, isSigner: false, isWritable: false },
-        { pubkey: systemProgram, isSigner: false, isWritable: false },
-        { pubkey: associatedTokenProgram, isSigner: false, isWritable: false },
-        { pubkey: eventAuthority, isSigner: false, isWritable: false },
-        { pubkey: programId, isSigner: false, isWritable: false },
+        { pubkey: pool, isSigner: false, isWritable: true },
+        { pubkey: userSourceToken, isSigner: false, isWritable: true },
+        { pubkey: userDestinationToken, isSigner: false, isWritable: true },
+        { pubkey: aVault, isSigner: false, isWritable: true },
+        { pubkey: bVault, isSigner: false, isWritable: true },
+        { pubkey: aTokenVault, isSigner: false, isWritable: true },
+        { pubkey: bTokenVault, isSigner: false, isWritable: true },
+        { pubkey: aVaultLpMint, isSigner: false, isWritable: true },
+        { pubkey: bVaultLpMint, isSigner: false, isWritable: true },
+        { pubkey: aVaultLp, isSigner: false, isWritable: true },
+        { pubkey: bVaultLp, isSigner: false, isWritable: true },
+        { pubkey: protocolTokenFee, isSigner: false, isWritable: true },
+        { pubkey: user, isSigner: true, isWritable: false },
+        { pubkey: vaultProgram, isSigner: false, isWritable: false },
+        { pubkey: tokenProgram, isSigner: false, isWritable: false },
     ];
 
-    return new TransactionInstruction({
-        programId,
-        keys,
-        data,
-    });
-}
-
-
-export function createMeteoraSellIx({
-    programId,
-    pool,
-    user,
-    globalConfig,
-    baseMint,
-    quoteMint,
-    userBaseTokenAccount,
-    userQuoteTokenAccount,
-    poolBaseTokenAccount,
-    poolQuoteTokenAccount,
-    protocolFeeRecipient,
-    protocolFeeRecipientTokenAccount,
-    baseTokenProgram,
-    quoteTokenProgram,
-    systemProgram,
-    associatedTokenProgram,
-    eventAuthority,
-    baseAmountIn,
-    minQuoteAmountOut,
-}: {
-    programId: PublicKey;
-    pool: PublicKey;
-    user: PublicKey;
-    globalConfig: PublicKey;
-    baseMint: PublicKey;
-    quoteMint: PublicKey;
-    userBaseTokenAccount: PublicKey;
-    userQuoteTokenAccount: PublicKey;
-    poolBaseTokenAccount: PublicKey;
-    poolQuoteTokenAccount: PublicKey;
-    protocolFeeRecipient: PublicKey;
-    protocolFeeRecipientTokenAccount: PublicKey;
-    baseTokenProgram: PublicKey;
-    quoteTokenProgram: PublicKey;
-    systemProgram: PublicKey;
-    associatedTokenProgram: PublicKey;
-    eventAuthority: PublicKey;
-    baseAmountIn: number | bigint;
-    minQuoteAmountOut: number | bigint;
-}): TransactionInstruction {
-    const discriminator = Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]);
-    const baseIn = Buffer.alloc(8);
-    const minQuoteOut = Buffer.alloc(8);
-    baseIn.writeBigUInt64LE(BigInt(baseAmountIn));
-    minQuoteOut.writeBigUInt64LE(BigInt(minQuoteAmountOut));
-    const data = Buffer.concat([discriminator, baseIn, minQuoteOut]);
-
-    const keys: AccountMeta[] = [
-        { pubkey: pool, isSigner: false, isWritable: false },
-        { pubkey: user, isSigner: true, isWritable: true },
-        { pubkey: globalConfig, isSigner: false, isWritable: false },
-        { pubkey: baseMint, isSigner: false, isWritable: false },
-        { pubkey: quoteMint, isSigner: false, isWritable: false },
-        { pubkey: userBaseTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: userQuoteTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: poolBaseTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: poolQuoteTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
-        { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: baseTokenProgram, isSigner: false, isWritable: false },
-        { pubkey: quoteTokenProgram, isSigner: false, isWritable: false },
-        { pubkey: systemProgram, isSigner: false, isWritable: false },
-        { pubkey: associatedTokenProgram, isSigner: false, isWritable: false },
-        { pubkey: eventAuthority, isSigner: false, isWritable: false },
-        { pubkey: programId, isSigner: false, isWritable: false },
-    ];
-
+    // Construct and return the TransactionInstruction
     return new TransactionInstruction({
         programId,
         keys,
