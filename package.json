@@ -8,7 +8,8 @@
     "pump-amm": "ts-node src/test/pump_swap_test.ts",
     "ray-clmm": "ts-node src/test/raydium_clmm_test.ts",
     "pump-fun": "ts-node src/test/pump_fun_test.ts",
-    "test": "npm run pump-fun"
+    "meteora-dyn": "ts-node src/test/meteora_dyn_test.ts",
+    "test": "npm run meteora-dyn"
   },
   "repository": {
     "type": "git",
