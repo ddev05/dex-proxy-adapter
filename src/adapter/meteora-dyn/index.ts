@@ -98,13 +98,8 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
             const bVaultLpMintDataDecoded = MintLayout.decode(bVaultLpMintData.data)
             const lpMintDataDecoded = MintLayout.decode(lpMintData.data)
 
-
-            const slot = await this.connection.getSlot()
-            const blockTime = await this.connection.getBlockTime(slot)
-
-
             const data = calculatePoolInfo(
-                BigNumber(blockTime || 0),
+                BigNumber(Math.floor(Date.now() / 1000)),
                 BigNumber(baseVaultDecoded.amount),
                 BigNumber(quoteVaultDecoded.amount),
                 BigNumber(aVaultLpMintDataDecoded.supply),
@@ -114,14 +109,11 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
                 this.poolVaultBState
             )
 
-            console.log("data ", data);
-
-
             return {
                 token0: this.poolInfo.tokenAMint.toBase58(),
                 token1: this.poolInfo.tokenBMint.toBase58(),
-                reserveToken0: Number(baseVaultDecoded.amount),
-                reserveToken1: Number(quoteVaultDecoded.amount),
+                reserveToken0: Number(data.tokenAAmount),
+                reserveToken1: Number(data.tokenBAmount),
             };
         } catch (err) {
             console.error("Failed to fetch pool reserves:", err);

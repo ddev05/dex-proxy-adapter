@@ -38,11 +38,12 @@ export const calculatePoolInfo = (
     vaultA: VaultAccount,
     vaultB: VaultAccount,
 ) => {
+
     const vaultAWithdrawableAmount = calculateWithdrawableAmount(currentTimestamp.toNumber(), vaultA);
     const vaultBWithdrawableAmount = calculateWithdrawableAmount(currentTimestamp.toNumber(), vaultB);
 
-    const tokenAAmount = getAmountByShare(poolVaultALp, vaultAWithdrawableAmount, vaultALpSupply);
-    const tokenBAmount = getAmountByShare(poolVaultBLp, vaultBWithdrawableAmount, vaultBLpSupply);
+    const tokenAAmount = getAmountByShare(poolVaultALp, vaultAWithdrawableAmount, vaultALpSupply).integerValue(BigNumber.ROUND_FLOOR);
+    const tokenBAmount = getAmountByShare(poolVaultBLp, vaultBWithdrawableAmount, vaultBLpSupply).integerValue(BigNumber.ROUND_FLOOR);
 
     const d = (tokenAAmount.plus(tokenBAmount)).sqrt()
 

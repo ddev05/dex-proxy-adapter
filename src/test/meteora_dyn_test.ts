@@ -29,7 +29,6 @@ const meteoraDynParam = {
     },
 }
 
-
 const meteoraDynTest = async () => {
 
     console.log(payer.publicKey.toBase58());
@@ -38,7 +37,6 @@ const meteoraDynTest = async () => {
     const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = meteoraDynParam.mainnet
 
     const connection = new Connection(MAINNET_RPC, "processed")
-
 
     const meteoraAdapter = await MeteoraDynAdapter.create(connection, poolId, "mainnet")
 
@@ -52,7 +50,6 @@ const meteoraDynTest = async () => {
     console.log(price);
 
     const minQuoteAmount = meteoraAdapter.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
-
     console.log(minQuoteAmount);
 
     const ata = getAssociatedTokenAddressSync(new PublicKey(outPutMintAddr), payer.publicKey)
