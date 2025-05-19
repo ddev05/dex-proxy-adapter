@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 import BigNumber from 'bignumber.js';
-import { BootstrappingInfo, MeteoraPoolInfo, PartnerInfo, PoolFees, VaultAccount } from './types';
+import { BootstrappingInfo, MeteoraPoolInfo, PartnerInfo, PoolFees } from './types';
 
 // Helper functions
 function readU8(buf: Buffer, offset: number): number {
@@ -53,7 +53,7 @@ export function parsePoolAccount(buf: Buffer): MeteoraPoolInfo {
     };
 
     const poolTypeTag = readU8(buf, offset); offset += 1;
-    const poolType = poolTypeTag === 1 ? 'permissionless' : 'other';
+    const poolType = poolTypeTag === 0 ? 'permissionless' : 'other';
 
     const stake = readPubkey(buf, offset); offset += 32;
     const totalLockedLp = readU64(buf, offset); offset += 8;
@@ -114,78 +114,4 @@ export function parsePoolAccount(buf: Buffer): MeteoraPoolInfo {
         partnerInfo,
         curveType,
     };
-}
-
-export function parseVaultAccount(buffer: Buffer): VaultAccount {
-  let offset = 8;
-
-  const enabled = readU8(buffer, offset);
-  offset += 1;
-
-  const vaultBump = readU8(buffer, offset);
-  offset += 1;
-
-  const tokenVaultBump = readU8(buffer, offset);
-  offset += 1;
-
-  const totalAmount = readU64(buffer, offset);
-  offset += 8;
-
-  const tokenVault = readPubkey(buffer, offset);
-  offset += 32;
-
-  const feeVault = readPubkey(buffer, offset);
-  offset += 32;
-
-  const tokenMint = readPubkey(buffer, offset);
-  offset += 32;
-
-  const lpMint = readPubkey(buffer, offset);
-  offset += 32;
-
-  const strategies: PublicKey[] = [];
-  for (let i = 0; i < 30; i++) {
-    strategies.push(readPubkey(buffer, offset));
-    offset += 32;
-  }
-
-  const base = readPubkey(buffer, offset);
-  offset += 32;
-
-  const admin = readPubkey(buffer, offset);
-  offset += 32;
-
-  const operator = readPubkey(buffer, offset);
-  offset += 32;
-
-  const lastUpdatedLockedProfit = readU64(buffer, offset);
-  offset += 8;
-
-  const lastReport = readU64(buffer, offset);
-  offset += 8;
-
-  const lockedProfitDegradation = readU64(buffer, offset);
-  offset += 8;
-
-  return {
-    enabled,
-    bumps: {
-      vaultBump,
-      tokenVaultBump,
-    },
-    totalAmount,
-    tokenVault,
-    feeVault,
-    tokenMint,
-    lpMint,
-    strategies,
-    base,
-    admin,
-    operator,
-    lockedProfitTracker: {
-      lastUpdatedLockedProfit,
-      lastReport,
-      lockedProfitDegradation,
-    },
-  };
 }

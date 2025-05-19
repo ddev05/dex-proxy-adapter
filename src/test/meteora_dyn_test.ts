@@ -1,6 +1,6 @@
 import { Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import { DEVNET_RPC, MAINNET_RPC, payer } from "../config";
-import { parsePoolAccount } from "../adapter/meteora-dyn/src/parse";
+import { parsePoolAccount, parseVaultAccount } from "../adapter/meteora-dyn/src/parse";
 import { LP_MINT_PREFIX, METEORA_VAULT_PROGRAM, TOKEN_VAULT_PREFIX } from "../adapter/meteora-dyn/src/constants";
 import { MeteoraDynAdapter } from "../adapter/meteora-dyn";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
@@ -33,15 +33,16 @@ const meteoraDynParam = {
 const meteoraDynTest = async () => {
 
     console.log(payer.publicKey.toBase58());
-    
+
 
     const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = meteoraDynParam.mainnet
 
     const connection = new Connection(MAINNET_RPC, "processed")
 
+
     const meteoraAdapter = await MeteoraDynAdapter.create(connection, poolId, "mainnet")
 
-     const poolInfo = meteoraAdapter.getPoolKeys()
+    const poolInfo = meteoraAdapter.getPoolKeys()
     console.log(poolInfo);
 
     const reserve = await meteoraAdapter.getPoolReserves()
@@ -54,10 +55,8 @@ const meteoraDynTest = async () => {
 
     console.log(minQuoteAmount);
 
-    //  const ata = getAssociatedTokenAddressSync(new PublicKey(outPutMintAddr), payer.publicKey)
-    // const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey , ata , payer.publicKey , new PublicKey(outPutMintAddr))
-    
-    console.log(minQuoteAmount);
+    const ata = getAssociatedTokenAddressSync(new PublicKey(outPutMintAddr), payer.publicKey)
+    const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, new PublicKey(outPutMintAddr))
 
     const tx = new Transaction()
 
@@ -66,16 +65,16 @@ const meteoraDynTest = async () => {
         user: payer.publicKey
     })
 
-    // tx.add(ataIx)
+    tx.add(ataIx)
     tx.add(ix)
 
     tx.feePayer = payer.publicKey
 
     console.log(await connection.simulateTransaction(tx));
 
-    const sig = await sendAndConfirmTransaction(connection, tx, [payer] , {skipPreflight : true})
+    // const sig = await sendAndConfirmTransaction(connection, tx, [payer] , {skipPreflight : true})
 
-    console.log(sig);
+    // console.log(sig);
 
 }
 

@@ -45,39 +45,6 @@ export interface MeteoraPoolInfo {
 }
 
 export interface MeteoraSwapAccount {
-  inputMint: PublicKey;
-  user: PublicKey;
-}
-
-export interface VaultBumps {
-  vaultBump: number;
-  tokenVaultBump: number;
-}
-
-export interface LockedProfitTracker {
-  lastUpdatedLockedProfit: BigNumber;
-  lastReport: BigNumber;
-  lockedProfitDegradation: BigNumber;
-}
-
-export interface VaultAccount {
-  enabled: number;
-  bumps: VaultBumps;
-  totalAmount: BigNumber;
-  tokenVault: PublicKey;
-  feeVault: PublicKey;
-  tokenMint: PublicKey;
-  lpMint: PublicKey;
-  strategies: PublicKey[];
-  base: PublicKey;
-  admin: PublicKey;
-  operator: PublicKey;
-  lockedProfitTracker: LockedProfitTracker;
-}
-
-export interface PoolInformation {
-  tokenAAmount: BigNumber,
-  tokenBAmount: BigNumber,
-  virtualPrice: number,
-  virtualPriceRaw: BigNumber,
+    inputMint : PublicKey;
+    user : PublicKey;
 }

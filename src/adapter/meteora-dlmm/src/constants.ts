@@ -1,14 +1,10 @@
 import { PublicKey } from "@solana/web3.js";
-import BigNumber from 'bignumber.js';
 
 const METEORA_PROGRAM_ADDR = new PublicKey("Eo7WjKq67rjJQSZxS6z3YkapzY3eMj6Xy8X5EQVn5UaB")
 const METEORA_VAULT_PROGRAM = new PublicKey("24Uqj9JCLxUeoC3hGfh5W3s9FM9uCHDS2SG3LYwBpyTi")
 
 const TOKEN_VAULT_PREFIX = "token_vault";
 const LP_MINT_PREFIX = "lp_mint";
-
-export const VIRTUAL_PRICE_PRECISION = new BigNumber(100_000_000);
-export const LOCKED_PROFIT_DEGRADATION_DENOMINATOR = new BigNumber(1_000_000_000_000);
 
 const VAULT_WITH_NON_PDA_BASED_LP_MINT: Record<string, PublicKey> = {
     "BFJP6RYDxJa4FmFtBpPDYcrPozjC98CELrXqVL7rGMVW": new PublicKey("5CuhvouXVx6t5XPiyhRkrfgK5omAf8XnqY1ef6CLjw7o"),

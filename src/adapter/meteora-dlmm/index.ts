@@ -2,9 +2,8 @@ import { Connection, PublicKey, Keypair, TransactionInstruction, SystemProgram }
 import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
 import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { calculatePoolInfo, MeteoraPoolInfo, MeteoraSwapAccount, parsePoolAccount, parseVaultAccount, VAULT_WITH_NON_PDA_BASED_LP_MINT, VaultAccount } from "./src";
+import { MeteoraPoolInfo, MeteoraSwapAccount, parsePoolAccount, VAULT_WITH_NON_PDA_BASED_LP_MINT } from "./src";
 import { LP_MINT_PREFIX, METEORA_PROGRAM_ADDR, METEORA_VAULT_PROGRAM, TOKEN_VAULT_PREFIX, createMeteoraSwapInstruction } from "./src";
-import BigNumber from "bignumber.js";
 
 export class MeteoraDynAdapter implements IDexReadAdapter {
     private connection: Connection;
@@ -13,23 +12,16 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
     private poolInfo: MeteoraPoolInfo | null
     private pool: PublicKey;
 
-    private poolVaultAState: VaultAccount | null;
-    private poolVaultBState: VaultAccount | null;
-
     private constructor(
         connection: Connection,
         cluster: "mainnet" | "devnet",
         poolInfo: MeteoraPoolInfo | null,
-        poolVaultAState: VaultAccount | null,
-        poolVaultBState: VaultAccount | null,
         pool: PublicKey
     ) {
         this.connection = connection;
         this.cluster = cluster;
         this.pool = pool;
         this.poolInfo = poolInfo;
-        this.poolVaultAState = poolVaultAState;
-        this.poolVaultBState = poolVaultBState;
     }
 
     static async create(connection: Connection, poolAddress: string, cluster: "mainnet" | "devnet" = "mainnet") {
@@ -41,18 +33,7 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
             poolInfo = parsePoolAccount(data.data);
         }
 
-        if (!poolInfo) throw new Error("Error in getting Pool Info")
-
-        const [dataA, dataB] = await connection.getMultipleAccountsInfo([poolInfo.aVault, poolInfo.bVault])
-
-        if (!dataA || !dataB) throw new Error("Error in getting Vault Info")
-
-
-        const poolVaultAState = parseVaultAccount(dataA?.data)
-        const poolVaultBState = parseVaultAccount(dataB?.data)
-
-
-        return new MeteoraDynAdapter(connection, cluster, poolInfo, poolVaultAState, poolVaultBState, poolId);
+        return new MeteoraDynAdapter(connection, cluster, poolInfo, poolId);
     }
 
     getPoolKeys(): MeteoraPoolInfo | null {
@@ -71,18 +52,12 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
                 reserveToken1: 0,
             }
 
-            const [aVaultLpMint] = VAULT_WITH_NON_PDA_BASED_LP_MINT[this.poolInfo.aVault.toBase58()] == undefined ? PublicKey.findProgramAddressSync([Buffer.from(LP_MINT_PREFIX), this.poolInfo.aVault.toBuffer()], METEORA_VAULT_PROGRAM) : [VAULT_WITH_NON_PDA_BASED_LP_MINT[this.poolInfo.aVault.toBase58()]];
-            const [bVaultLpMint] = VAULT_WITH_NON_PDA_BASED_LP_MINT[this.poolInfo.bVault.toBase58()] == undefined ? PublicKey.findProgramAddressSync([Buffer.from(LP_MINT_PREFIX), this.poolInfo.bVault.toBuffer()], METEORA_VAULT_PROGRAM) : [VAULT_WITH_NON_PDA_BASED_LP_MINT[this.poolInfo.bVault.toBase58()]];
-
-            const [baseVaultData, quoteVaultData, aVaultLpMintData, bVaultLpMintData, lpMintData] = await this.connection.getMultipleAccountsInfo([
+            const [baseVaultData, quoteVaultData] = await this.connection.getMultipleAccountsInfo([
                 this.poolInfo.aVaultLp,
                 this.poolInfo.bVaultLp,
-                aVaultLpMint,
-                bVaultLpMint,
-                this.poolInfo.lpMint
             ]);
 
-            if (!baseVaultData || !quoteVaultData || !aVaultLpMintData || !bVaultLpMintData || !lpMintData || this.poolVaultAState == null || this.poolVaultBState == null) {
+            if (!baseVaultData || !quoteVaultData) {
                 return {
                     token0: this.poolInfo.aVault.toBase58(),
                     token1: this.poolInfo.bVault.toBase58(),
@@ -93,29 +68,6 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
 
             const baseVaultDecoded = AccountLayout.decode(baseVaultData.data);
             const quoteVaultDecoded = AccountLayout.decode(quoteVaultData.data);
-
-            const aVaultLpMintDataDecoded = MintLayout.decode(aVaultLpMintData.data)
-            const bVaultLpMintDataDecoded = MintLayout.decode(bVaultLpMintData.data)
-            const lpMintDataDecoded = MintLayout.decode(lpMintData.data)
-
-
-            const slot = await this.connection.getSlot()
-            const blockTime = await this.connection.getBlockTime(slot)
-
-
-            const data = calculatePoolInfo(
-                BigNumber(blockTime || 0),
-                BigNumber(baseVaultDecoded.amount),
-                BigNumber(quoteVaultDecoded.amount),
-                BigNumber(aVaultLpMintDataDecoded.supply),
-                BigNumber(bVaultLpMintDataDecoded.supply),
-                BigNumber(lpMintDataDecoded.supply),
-                this.poolVaultAState,
-                this.poolVaultBState
-            )
-
-            console.log("data ", data);
-
 
             return {
                 token0: this.poolInfo.tokenAMint.toBase58(),
@@ -200,6 +152,8 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
         const [aTokenVault] = PublicKey.findProgramAddressSync([Buffer.from(TOKEN_VAULT_PREFIX), aVault.toBuffer()], METEORA_VAULT_PROGRAM)
         const [bTokenVault] = PublicKey.findProgramAddressSync([Buffer.from(TOKEN_VAULT_PREFIX), bVault.toBuffer()], METEORA_VAULT_PROGRAM)
 
+        console.log()
+
         const [aVaultLpMint] = VAULT_WITH_NON_PDA_BASED_LP_MINT[aVault.toBase58()] == undefined ? PublicKey.findProgramAddressSync([Buffer.from(LP_MINT_PREFIX), aVault.toBuffer()], METEORA_VAULT_PROGRAM) : [VAULT_WITH_NON_PDA_BASED_LP_MINT[aVault.toBase58()]];
         const [bVaultLpMint] = VAULT_WITH_NON_PDA_BASED_LP_MINT[bVault.toBase58()] == undefined ? PublicKey.findProgramAddressSync([Buffer.from(LP_MINT_PREFIX), bVault.toBuffer()], METEORA_VAULT_PROGRAM) : [VAULT_WITH_NON_PDA_BASED_LP_MINT[bVault.toBase58()]];
 
@@ -207,6 +161,28 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
 
         const userSourceToken = getAssociatedTokenAddressSync(inputMint, user)
         const userDestinationToken = getAssociatedTokenAddressSync(outputMint, user)
+
+        console.log({
+            programId: METEORA_PROGRAM_ADDR,
+            pool: this.pool,
+            userSourceToken,
+            userDestinationToken,
+            aVault,
+            bVault,
+            aTokenVault,
+            bTokenVault,
+            aVaultLpMint,
+            bVaultLpMint,
+            aVaultLp,
+            bVaultLp,
+            protocolTokenFee: protocolTokenBFee,
+            user,
+            vaultProgram: METEORA_VAULT_PROGRAM,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            inAmount: amountIn,
+            minimumOutAmount: amountOut,
+        });
+
 
         const ix = createMeteoraSwapInstruction(
             {
