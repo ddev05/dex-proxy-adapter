@@ -5,7 +5,6 @@ import BigNumber from "bignumber.js";
 //     inTokenMint: PublicKey,
 //     inAmountLamport: BigNumber,
 //     params: SwapQuoteParam,
-//     swapInitiator?: PublicKey,
 // ) {
 
 // }

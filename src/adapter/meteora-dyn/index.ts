@@ -47,7 +47,6 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
 
         if (!dataA || !dataB) throw new Error("Error in getting Vault Info")
 
-
         const poolVaultAState = parseVaultAccount(dataA?.data)
         const poolVaultBState = parseVaultAccount(dataB?.data)
 
@@ -99,7 +98,7 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
             const lpMintDataDecoded = MintLayout.decode(lpMintData.data)
 
             const data = calculatePoolInfo(
-                BigNumber(Math.floor(Date.now() / 1000)),
+                BigNumber(Math.floor(Date.now() / 1000) - 4),
                 BigNumber(baseVaultDecoded.amount),
                 BigNumber(quoteVaultDecoded.amount),
                 BigNumber(aVaultLpMintDataDecoded.supply),
@@ -129,25 +128,12 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
     async getPrice(reserve: PoolReserves): Promise<number> {
         const { reserveToken0: reserveBase, reserveToken1: reserveQuote } = reserve;
 
-        if (!this.poolInfo) return 0;
-
-        const [baseMintInfo, quoteMintInfo] = await this.connection.getMultipleAccountsInfo([
-            this.poolInfo.tokenAMint,
-            this.poolInfo.tokenBMint
-        ]);
-
-        if (!baseMintInfo || !quoteMintInfo) return 0;
-
-        const baseMintParsedInfo = MintLayout.decode(baseMintInfo.data);
-        const quoteMintParsedInfo = MintLayout.decode(quoteMintInfo.data);
-
-        const reserveUIBase = reserveBase / 10 ** baseMintParsedInfo.decimals;
-        const reserveUIQuote = reserveQuote / 10 ** quoteMintParsedInfo.decimals;
+        if (!this.poolInfo) return 0
 
         if (this.poolInfo.tokenAMint.toBase58() != NATIVE_MINT.toBase58()) {
-            return reserveUIQuote / reserveUIBase;
+            return reserveQuote / reserveBase;
         } else {
-            return reserveUIBase / reserveUIQuote;
+            return reserveBase / reserveQuote;
         }
     }
 
