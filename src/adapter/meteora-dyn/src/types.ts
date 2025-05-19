@@ -81,3 +81,8 @@ export interface PoolInformation {
   virtualPrice: number,
   virtualPriceRaw: BigNumber,
 }
+
+export enum TradeDirection {
+  AToB,
+  BToA,
+}

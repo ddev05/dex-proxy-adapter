@@ -22,10 +22,10 @@ export function calculateWithdrawableAmount(onChainTime: number, vaultState: Vau
     return vaultTotalAmount.minus(lockedProfit);
 }
 
-function getAmountByShare(amount: BigNumber, tokenAmount: BigNumber, lpSupply: BigNumber): BigNumber {
+export function getAmountByShare(amount: BigNumber, tokenAmount: BigNumber, lpSupply: BigNumber): BigNumber {
     if (lpSupply.isZero()) return new BigNumber(0);
 
-    return amount.times(tokenAmount).div(lpSupply);
+    return (amount.times(tokenAmount).div(lpSupply)).integerValue();
 }
 
 export const calculatePoolInfo = (

@@ -2,7 +2,7 @@ import { Connection, PublicKey, Keypair, TransactionInstruction, SystemProgram }
 import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
 import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { calculatePoolInfo, MeteoraPoolInfo, MeteoraSwapAccount, parsePoolAccount, parseVaultAccount, VAULT_WITH_NON_PDA_BASED_LP_MINT, VaultAccount } from "./src";
+import { calculateMaxSwapOutAmount, calculatePoolInfo, calculateProtocolTradingFee, calculateTradingFee, calculateWithdrawableAmount, computeOutAmount, getAmountByShare, getUnmintAmount, MeteoraPoolInfo, MeteoraSwapAccount, parsePoolAccount, parseVaultAccount, TradeDirection, VAULT_WITH_NON_PDA_BASED_LP_MINT, VaultAccount } from "./src";
 import { LP_MINT_PREFIX, METEORA_PROGRAM_ADDR, METEORA_VAULT_PROGRAM, TOKEN_VAULT_PREFIX, createMeteoraSwapInstruction } from "./src";
 import BigNumber from "bignumber.js";
 
@@ -15,6 +15,14 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
 
     private poolVaultAState: VaultAccount | null;
     private poolVaultBState: VaultAccount | null;
+
+    private poolVaultALp!: BigNumber;
+    private poolVaultBLp!: BigNumber;
+    private vaultALpSupply!: BigNumber;
+    private vaultBLpSupply!: BigNumber;
+    private poolLpSupply!: BigNumber;
+    private aVaultParsedData!: BigNumber;
+    private bVaultParsedData!: BigNumber;
 
     private constructor(
         connection: Connection,
@@ -61,7 +69,7 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
     async getPoolReserves(
     ): Promise<PoolReserves> {
         try {
-            if (!this.poolInfo || !this.poolInfo?.aVault || !this.poolInfo?.bVault) return {
+            if (!this.poolInfo || !this.poolVaultAState || !this.poolVaultBState) return {
                 //  @ts-ignore
                 token0: this.poolInfo.baseMint.toBase58(),
                 //  @ts-ignore
@@ -73,15 +81,17 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
             const [aVaultLpMint] = VAULT_WITH_NON_PDA_BASED_LP_MINT[this.poolInfo.aVault.toBase58()] == undefined ? PublicKey.findProgramAddressSync([Buffer.from(LP_MINT_PREFIX), this.poolInfo.aVault.toBuffer()], METEORA_VAULT_PROGRAM) : [VAULT_WITH_NON_PDA_BASED_LP_MINT[this.poolInfo.aVault.toBase58()]];
             const [bVaultLpMint] = VAULT_WITH_NON_PDA_BASED_LP_MINT[this.poolInfo.bVault.toBase58()] == undefined ? PublicKey.findProgramAddressSync([Buffer.from(LP_MINT_PREFIX), this.poolInfo.bVault.toBuffer()], METEORA_VAULT_PROGRAM) : [VAULT_WITH_NON_PDA_BASED_LP_MINT[this.poolInfo.bVault.toBase58()]];
 
-            const [baseVaultData, quoteVaultData, aVaultLpMintData, bVaultLpMintData, lpMintData] = await this.connection.getMultipleAccountsInfo([
+            const [baseVaultData, quoteVaultData, aVaultLpMintData, bVaultLpMintData, lpMintData, aVaultData, bVaultData] = await this.connection.getMultipleAccountsInfo([
                 this.poolInfo.aVaultLp,
                 this.poolInfo.bVaultLp,
                 aVaultLpMint,
                 bVaultLpMint,
-                this.poolInfo.lpMint
+                this.poolInfo.lpMint,
+                this.poolVaultAState.tokenVault,
+                this.poolVaultBState.tokenVault
             ]);
 
-            if (!baseVaultData || !quoteVaultData || !aVaultLpMintData || !bVaultLpMintData || !lpMintData || this.poolVaultAState == null || this.poolVaultBState == null) {
+            if (!baseVaultData || !quoteVaultData || !aVaultLpMintData || !bVaultLpMintData || !aVaultData || !bVaultData || !lpMintData || this.poolVaultAState == null || this.poolVaultBState == null) {
                 return {
                     token0: this.poolInfo.aVault.toBase58(),
                     token1: this.poolInfo.bVault.toBase58(),
@@ -90,20 +100,21 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
                 };
             }
 
-            const baseVaultDecoded = AccountLayout.decode(baseVaultData.data);
-            const quoteVaultDecoded = AccountLayout.decode(quoteVaultData.data);
-
-            const aVaultLpMintDataDecoded = MintLayout.decode(aVaultLpMintData.data)
-            const bVaultLpMintDataDecoded = MintLayout.decode(bVaultLpMintData.data)
-            const lpMintDataDecoded = MintLayout.decode(lpMintData.data)
+            this.poolVaultALp = BigNumber(AccountLayout.decode(baseVaultData.data).amount);
+            this.poolVaultBLp = BigNumber(AccountLayout.decode(quoteVaultData.data).amount);
+            this.vaultALpSupply = BigNumber(MintLayout.decode(aVaultLpMintData.data).supply)
+            this.vaultBLpSupply = BigNumber(MintLayout.decode(bVaultLpMintData.data).supply)
+            this.poolLpSupply = BigNumber(MintLayout.decode(lpMintData.data).supply)
+            this.aVaultParsedData = BigNumber(AccountLayout.decode(aVaultData.data).amount);
+            this.bVaultParsedData = BigNumber(AccountLayout.decode(bVaultData.data).amount);
 
             const data = calculatePoolInfo(
-                BigNumber(Math.floor(Date.now() / 1000) - 4),
-                BigNumber(baseVaultDecoded.amount),
-                BigNumber(quoteVaultDecoded.amount),
-                BigNumber(aVaultLpMintDataDecoded.supply),
-                BigNumber(bVaultLpMintDataDecoded.supply),
-                BigNumber(lpMintDataDecoded.supply),
+                BigNumber(Math.floor(Date.now() / 1000) - 3),
+                this.poolVaultALp,
+                this.poolVaultBLp,
+                this.vaultALpSupply,
+                this.vaultBLpSupply,
+                this.poolLpSupply,
                 this.poolVaultAState,
                 this.poolVaultBState
             )
@@ -137,33 +148,108 @@ export class MeteoraDynAdapter implements IDexReadAdapter {
         }
     }
 
-    getSwapQuote(baseAmountIn: number, inputMint: string, reserve: PoolReserves, slippage: number = 0): number {
+    //  @ts-ignore
+    getSwapQuote(baseAmountIn: number, inputMint: string, slippage: number = 0): BigNumber {
         let reserveIn: number, reserveOut: number;
 
-        if (inputMint === reserve.token0) {
-            reserveIn = reserve.reserveToken0, reserveOut = reserve.reserveToken1;
+        if (!this.poolInfo || !this.poolVaultAState || !this.poolVaultBState) throw new Error("Pool Info didn't be loaded")
 
-            let amountOut = Math.floor(reserveOut / (reserveIn + baseAmountIn) * baseAmountIn) - 1
+        const { tokenAMint, tokenBMint } = this.poolInfo;
 
-            const amountOutWithFee = Math.floor(amountOut * 0.9975)
-            const amountOutWithFeeSlippage = Math.floor(amountOutWithFee * (1 - slippage / 100))
+        const currentTime = Date.now() - 3;
 
-            return amountOutWithFeeSlippage
-        }
-        else {
-            reserveOut = reserve.reserveToken0, reserveIn = reserve.reserveToken1
-            const sol_reserve = BigInt(reserveIn);
-            const token_reserve = BigInt(reserveOut);
+        const vaultAWithdrawableAmount = calculateWithdrawableAmount(currentTime, this.poolVaultAState);
+        const vaultBWithdrawableAmount = calculateWithdrawableAmount(currentTime, this.poolVaultBState);
 
-            const product = sol_reserve * token_reserve;
+        const tokenAAmount = getAmountByShare(this.poolVaultALp, vaultAWithdrawableAmount, this.vaultALpSupply);
+        const tokenBAmount = getAmountByShare(this.poolVaultBLp, vaultBWithdrawableAmount, this.vaultBLpSupply);
 
-            let new_sol_reserve = sol_reserve + BigInt(baseAmountIn - 1) * BigInt(10000) / BigInt(10025);
+        const isFromAToB = new PublicKey(inputMint).equals(tokenAMint);
 
-            let new_token_reserve = product / new_sol_reserve + BigInt(1);
-            let amount_to_be_purchased = token_reserve - new_token_reserve;
+        const [
+            sourceAmount,
+            swapSourceVaultLpAmount,
+            swapSourceAmount,
+            swapDestinationAmount,
+            swapSourceVault,
+            swapDestinationVault,
+            swapSourceVaultLpSupply,
+            swapDestinationVaultLpSupply,
+            tradeDirection,
+        ] = isFromAToB
+                ? [
+                    BigNumber(baseAmountIn),
+                    this.poolVaultALp,
+                    tokenAAmount,
+                    tokenBAmount,
+                    this.poolVaultAState,
+                    this.poolVaultBState,
+                    this.vaultALpSupply,
+                    this.vaultBLpSupply,
+                    TradeDirection.AToB,
+                ]
+                : [
+                    BigNumber(baseAmountIn),
+                    this.poolVaultBLp,
+                    tokenBAmount,
+                    tokenAAmount,
+                    this.poolVaultBState,
+                    this.poolVaultAState,
+                    this.vaultBLpSupply,
+                    this.vaultALpSupply,
+                    TradeDirection.BToA,
+                ];
 
-            return Number(amount_to_be_purchased)
-        }
+        const tradeFee = calculateTradingFee(sourceAmount, this.poolInfo);
+        // Protocol fee is a cut of trade fee
+        const protocolFee = calculateProtocolTradingFee(tradeFee, this.poolInfo);
+        const tradeFeeAfterProtocolFee = tradeFee.minus(protocolFee);
+
+        const sourceVaultWithdrawableAmount = calculateWithdrawableAmount(currentTime, swapSourceVault);
+
+        const beforeSwapSourceAmount = swapSourceAmount;
+        const sourceAmountLessProtocolFee = sourceAmount.minus(protocolFee);
+
+        // Get vault lp minted when deposit to the vault
+        const sourceVaultLp = getUnmintAmount(
+            sourceAmountLessProtocolFee,
+            sourceVaultWithdrawableAmount,
+            swapSourceVaultLpSupply,
+        );
+
+        const sourceVaultTotalAmount = sourceVaultWithdrawableAmount.plus(sourceAmountLessProtocolFee);
+
+        const afterSwapSourceAmount = getAmountByShare(
+            sourceVaultLp.plus(swapSourceVaultLpAmount),
+            sourceVaultTotalAmount,
+            swapSourceVaultLpSupply.plus(sourceVaultLp),
+        );
+
+        const actualSourceAmount = afterSwapSourceAmount.minus(beforeSwapSourceAmount);
+        let sourceAmountWithFee = actualSourceAmount.minus(tradeFeeAfterProtocolFee);
+
+        const destinationAmount = computeOutAmount(
+            sourceAmountWithFee,
+            swapSourceAmount,
+            swapDestinationAmount,
+            tradeDirection,
+        );
+
+        const destinationVaultWithdrawableAmount = calculateWithdrawableAmount(currentTime, swapDestinationVault);
+        // Get vault lp to burn when withdraw from the vault
+        const destinationVaultLp = getUnmintAmount(
+            destinationAmount,
+            destinationVaultWithdrawableAmount,
+            swapDestinationVaultLpSupply,
+        );
+
+        let actualDestinationAmount = getAmountByShare(
+            destinationVaultLp,
+            destinationVaultWithdrawableAmount,
+            swapDestinationVaultLpSupply,
+        );
+
+        return actualDestinationAmount.times(100 - slippage).div(100)
     }
 
     getSwapInstruction(

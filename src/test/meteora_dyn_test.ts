@@ -7,10 +7,11 @@ import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAd
 
 const meteoraDynParam = {
     mainnet: {
-        poolId: "B1AdQ85N2mJ2xtMg9bgThhsPoA6T3M26rt4TChWSiPpr",
+        poolId: "BPq2BgQjn6a4KFVY7dWnKEJ98uWcAxBrDghEd9Ld1q9S",
         inputMintAddr: "So11111111111111111111111111111111111111112",
-        outPutMintAddr: "3iQL8BFS2vE7mww4ehAqQHAsbmRNCrPxizWAT2Zfyr9y",
-        inputAmount: 0.000001 * LAMPORTS_PER_SOL,
+        outPutMintAddr: "9XjiBXqM8yKk345CMtrWsfoVeXvGZxk1xZD4bdTEbTcv",
+        // inputAmount: 0.000001 * LAMPORTS_PER_SOL,
+        inputAmount: 10_000,
         slippage: 0
     },
     devnet: {
@@ -21,9 +22,9 @@ const meteoraDynParam = {
         slippage: 0
     },
     localnet: {
-        poolId: "B1AdQ85N2mJ2xtMg9bgThhsPoA6T3M26rt4TChWSiPpr",
+        poolId: "BPq2BgQjn6a4KFVY7dWnKEJ98uWcAxBrDghEd9Ld1q9S",
         inputMintAddr: "So11111111111111111111111111111111111111112",
-        outPutMintAddr: "3iQL8BFS2vE7mww4ehAqQHAsbmRNCrPxizWAT2Zfyr9y",
+        outPutMintAddr: "9XjiBXqM8yKk345CMtrWsfoVeXvGZxk1xZD4bdTEbTcv",
         inputAmount: 0.01 * LAMPORTS_PER_SOL,
         slippage: 0
     },
@@ -49,15 +50,15 @@ const meteoraDynTest = async () => {
     const price = await meteoraAdapter.getPrice(reserve)
     console.log(price);
 
-    const minQuoteAmount = meteoraAdapter.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
-    console.log(minQuoteAmount);
+    const minQuoteAmount = meteoraAdapter.getSwapQuote(inputAmount, inputMintAddr, 0.0)
+    console.log("minQuoteAmount " , minQuoteAmount.toNumber());
 
     const ata = getAssociatedTokenAddressSync(new PublicKey(outPutMintAddr), payer.publicKey)
     const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, new PublicKey(outPutMintAddr))
 
     const tx = new Transaction()
 
-    const ix = await meteoraAdapter.getSwapInstruction(inputAmount, minQuoteAmount, {
+    const ix = await meteoraAdapter.getSwapInstruction(inputAmount, minQuoteAmount.toNumber(), {
         inputMint: new PublicKey(inputMintAddr),
         user: payer.publicKey
     })
