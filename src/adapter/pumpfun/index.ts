@@ -1,6 +1,6 @@
 import { Connection, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import { IDexReadAdapter } from "../utils/iAdapter";
-import { BONDING_CURVE_SEED, parseBondingCurve, PumpBondingCurveInfo, PUMPFUN_CREATOR_VAULT, PUMPFUN_DEVNET_EVENT_AUTH, PUMPFUN_FEE_RECIPIENT, PUMPFUN_GLOBAL, PUMPFUN_MAINNET_EVENT_AUTH, PUMPFUN_PROGRAM_ID, pumpfunBuyIx, pumpfunSellIx, PumpfunSwapAccountKeys } from "./src";
+import { BONDING_CURVE_SEED, parseBondingCurve, PumpBondingCurveInfo, PUMPFUN_CREATOR_VAULT, PUMPFUN_DEVNET_EVENT_AUTH, PUMPFUN_FEE_RECIPIENT, PUMPFUN_GLOBAL, PUMPFUN_MAINNET_EVENT_AUTH, PUMPFUN_PROGRAM_ID, pumpfunBuyIx, PumpfunKeys, pumpfunSellIx, PumpfunSwapAccountKeys } from "./src";
 import { PoolReserves } from "../types";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { createPumpswapBuyIx } from "../pump-amm/src";
@@ -49,6 +49,37 @@ export class PumpfunAdapter implements IDexReadAdapter {
 
     getPoolKeys(): PumpBondingCurveInfo | null {
         return this.poolInfo;
+    }
+
+    static async getPoolsFromCa(connection: Connection, mintAddr: PublicKey, payer: PublicKey): Promise<PumpfunKeys> {
+
+        const [bondingCurveAddr] = PublicKey.findProgramAddressSync([Buffer.from(BONDING_CURVE_SEED), mintAddr.toBuffer()], PUMPFUN_PROGRAM_ID)
+        const data = await connection.getAccountInfo(bondingCurveAddr);
+
+        if (!data) throw new Error("Completed Bonding Curve")
+
+        const poolInfo = parseBondingCurve(data.data);
+        const associatedPayerAta = getAssociatedTokenAddressSync(mintAddr, payer);
+        const associatedBondingCurve = getAssociatedTokenAddressSync(mintAddr, bondingCurveAddr, true);
+        const [pumpfunGlobal] = PublicKey.findProgramAddressSync([Buffer.from(PUMPFUN_GLOBAL)], PUMPFUN_PROGRAM_ID)
+        const [rent] = PublicKey.findProgramAddressSync(
+            [Buffer.from(PUMPFUN_CREATOR_VAULT), poolInfo.creator == undefined ? NATIVE_MINT.toBuffer() : poolInfo.creator.toBuffer()],
+            PUMPFUN_PROGRAM_ID
+        );
+
+        return {
+            global: pumpfunGlobal,
+            bondingCurve: bondingCurveAddr,
+            associatedBondingCurve,
+            mint: mintAddr,
+            associatedUser: associatedPayerAta,
+            user: payer,
+            rent,
+            eventAuthority: PUMPFUN_MAINNET_EVENT_AUTH,
+            feeRecipient: PUMPFUN_FEE_RECIPIENT[0],
+            programId: PUMPFUN_PROGRAM_ID,
+            tokenProgram: TOKEN_PROGRAM_ID,
+        }
     }
 
     async getPoolReserves(
