@@ -39,9 +39,6 @@ export class PumpfunAdapter implements IDexReadAdapter {
             if (poolInfo.complete) {
                 throw new Error("Completed Bonding Curve")
             }
-
-            console.log(poolInfo);
-
         }
 
         return new PumpfunAdapter(connection, cluster, poolInfo, bondingCurve, token_mint);

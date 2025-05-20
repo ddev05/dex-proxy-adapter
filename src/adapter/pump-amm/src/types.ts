@@ -14,11 +14,31 @@ export interface PumpSwapPoolInfo {
 
 
 export interface PumpSwapAccount {
-    inputMint : PublicKey;
-    pool : PublicKey;
-    baseMint : PublicKey;
-    quoteMint : PublicKey;
-    baseTokenProgram : PublicKey;
-    quoteTokenProgram : PublicKey;
-    user : PublicKey;
+    inputMint: PublicKey;
+    pool: PublicKey;
+    baseMint: PublicKey;
+    quoteMint: PublicKey;
+    baseTokenProgram: PublicKey;
+    quoteTokenProgram: PublicKey;
+    user: PublicKey;
+}
+
+export interface PumpSwapKeys {
+    pool: PublicKey,
+    user: PublicKey,
+    globalConfig: PublicKey,
+    baseMint: PublicKey,
+    quoteMint: PublicKey,
+    userBaseTokenAccount: PublicKey,
+    userQuoteTokenAccount: PublicKey,
+    poolBaseTokenAccount: PublicKey,
+    poolQuoteTokenAccount: PublicKey,
+    protocolFeeRecipient: PublicKey,
+    protocolFeeRecipientTokenAccount: PublicKey,
+    baseTokenProgram: PublicKey,
+    quoteTokenProgram: PublicKey,
+    systemProgram: PublicKey,
+    associatedTokenProgram: PublicKey,
+    eventAuthority: PublicKey,
+    programId: PublicKey,
 }

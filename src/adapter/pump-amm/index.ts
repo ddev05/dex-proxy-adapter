@@ -1,8 +1,9 @@
-import { Connection, PublicKey, Keypair, TransactionInstruction, SystemProgram } from "@solana/web3.js";
+import { Connection, PublicKey, TransactionInstruction, SystemProgram } from "@solana/web3.js";
 import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
-import { AccountLayout, Account, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { createPumpswapBuyIx, createPumpswapSellIx, parsePool, PUMPSWAP_DEVNET_FEE_ADDR, PUMPSWAP_EVENT_AUTH, PUMPSWAP_GLOBAL_CONFIG, PUMPSWAP_MAINNET_FEE_ADDR, PUMPSWAP_PROGRAM_ADDR, PumpSwapAccount, PumpSwapPoolInfo } from "./src";
+import { AccountLayout, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { createPumpswapBuyIx, createPumpswapSellIx, parsePool, PUMPSWAP_DEVNET_FEE_ADDR, PUMPSWAP_EVENT_AUTH, PUMPSWAP_GLOBAL_CONFIG, PUMPSWAP_MAINNET_FEE_ADDR, PUMPSWAP_POOL, PUMPSWAP_PROGRAM_ADDR, PumpSwapAccount, PumpSwapKeys, PumpSwapPoolInfo } from "./src";
+import { BONDING_CURVE_SEED, parseBondingCurve, PumpBondingCurveInfo, PUMPFUN_POOL_AUTH, PUMPFUN_PROGRAM_ID } from "../pumpfun/src";
 
 export class PumpSwapAdapter implements IDexReadAdapter {
     private connection: Connection;
@@ -32,6 +33,53 @@ export class PumpSwapAdapter implements IDexReadAdapter {
         }
 
         return new PumpSwapAdapter(connection, cluster, poolInfo);
+    }
+
+    static async getPoolsFromCa(connection: Connection, mintAddr: PublicKey, payer: PublicKey, index = 0): Promise<PumpSwapKeys> {
+        const baseMint = mintAddr, quoteMint = NATIVE_MINT;
+
+        const [creator] = PublicKey.findProgramAddressSync([Buffer.from(PUMPFUN_POOL_AUTH), mintAddr.toBuffer()], PUMPFUN_PROGRAM_ID)
+
+        const buffer = Buffer.alloc(2); // 2 bytes for u16
+        buffer.writeUInt16LE(index);
+
+        const [pool] = PublicKey.findProgramAddressSync([
+            Buffer.from(PUMPSWAP_POOL),                    // const seed
+            buffer,     // index seed
+            creator.toBuffer(),                    // creator pubkey
+            baseMint.toBuffer(),                   // base mint pubkey
+            quoteMint.toBuffer()                   // quote mint pubkey
+        ], PUMPSWAP_PROGRAM_ADDR)
+        const [globalConfig] = PublicKey.findProgramAddressSync([Buffer.from(PUMPSWAP_GLOBAL_CONFIG)], PUMPSWAP_PROGRAM_ADDR)
+        const [eventAuthority] = PublicKey.findProgramAddressSync([Buffer.from(PUMPSWAP_EVENT_AUTH)], PUMPSWAP_PROGRAM_ADDR)
+
+        const poolBaseTokenAccount = getAssociatedTokenAddressSync(baseMint, pool, true)
+        const poolQuoteTokenAccount = getAssociatedTokenAddressSync(quoteMint, pool, true)
+        const userBaseTokenAccount = getAssociatedTokenAddressSync(baseMint, payer)
+        const userQuoteTokenAccount = getAssociatedTokenAddressSync(quoteMint, payer)
+
+        const protocolFeeRecipient = PUMPSWAP_MAINNET_FEE_ADDR[0]
+        const protocolFeeRecipientTokenAccount = getAssociatedTokenAddressSync(NATIVE_MINT, protocolFeeRecipient, true);
+
+        return {
+            pool,
+            user: payer,
+            globalConfig,
+            baseMint,
+            quoteMint,
+            userBaseTokenAccount,
+            userQuoteTokenAccount,
+            poolBaseTokenAccount,
+            poolQuoteTokenAccount,
+            protocolFeeRecipient,
+            protocolFeeRecipientTokenAccount,
+            baseTokenProgram: TOKEN_PROGRAM_ID,
+            quoteTokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            eventAuthority,
+            programId: PUMPSWAP_PROGRAM_ADDR,
+        }
     }
 
     getPoolKeys(): PumpSwapPoolInfo | null {
@@ -119,7 +167,7 @@ export class PumpSwapAdapter implements IDexReadAdapter {
 
             const amountOutWithFee = Math.floor(amountOut * 0.9975)
             const amountOutWithFeeSlippage = Math.floor(amountOutWithFee * (1 - slippage / 100))
-            
+
             return amountOutWithFeeSlippage
         }
         else {

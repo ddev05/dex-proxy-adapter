@@ -1,12 +1,12 @@
 import { Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
-import { DEVNET_RPC, payer } from "../config";
+import { DEVNET_RPC, MAINNET_RPC, payer } from "../config";
 import { PumpSwapAdapter } from "../adapter";
 
 const pumpAmmSwapParam = {
     mainnet: {
-        poolId: "EA4xjkrKYy1XmQ9A63p4FS5bvGqPZjuDrSS8x1RNaegx",
+        poolId: "9P9EQxyBrJfhwhtt6wQZsB3VAs7LQwbUXjRS3YrYQp2P",
         inputMintAddr: "So11111111111111111111111111111111111111112",
-        outPutMintAddr: "9jUb38tuMqsCe328tM7kxFEm3wRpbo3MbXPJoFiTpump",
+        outPutMintAddr: "6QHdT4x1BWmuFKYPixXu5BitzvKPTzALLehi3Cmsend",
         inputAmount: 10 * LAMPORTS_PER_SOL,
         slippage: 0
     },
@@ -18,9 +18,9 @@ const pumpAmmSwapParam = {
         slippage: 0
     },
     localnet: {
-        poolId: "EA4xjkrKYy1XmQ9A63p4FS5bvGqPZjuDrSS8x1RNaegx",
+        poolId: "9P9EQxyBrJfhwhtt6wQZsB3VAs7LQwbUXjRS3YrYQp2P",
         inputMintAddr: "So11111111111111111111111111111111111111112",
-        outPutMintAddr: "9jUb38tuMqsCe328tM7kxFEm3wRpbo3MbXPJoFiTpump",
+        outPutMintAddr: "6QHdT4x1BWmuFKYPixXu5BitzvKPTzALLehi3Cmsend",
         inputAmount: 0.01 * LAMPORTS_PER_SOL,
         slippage: 0
     },
@@ -29,10 +29,10 @@ const pumpAmmSwapParam = {
 
 const pumpSwapParamTest = async () => {
 
-    const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = pumpAmmSwapParam.devnet
+    const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } = pumpAmmSwapParam.mainnet
 
-    const connection = new Connection(DEVNET_RPC, "processed")
-    const pumpSwapAdapter = await PumpSwapAdapter.create(connection, poolId, "devnet")
+    const connection = new Connection(MAINNET_RPC, "processed")
+    const pumpSwapAdapter = await PumpSwapAdapter.create(connection, poolId, "mainnet")
 
     const poolInfo = pumpSwapAdapter.getPoolKeys()
     console.log(poolInfo);
@@ -46,6 +46,10 @@ const pumpSwapParamTest = async () => {
     console.log(price);
 
     const minQuoteAmount = pumpSwapAdapter.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
+
+    const getSwapKeys = await PumpSwapAdapter.getPoolsFromCa(connection, new PublicKey(outPutMintAddr), payer.publicKey , 0)
+
+    console.log("Here is swap keys : ", getSwapKeys);
 
     console.log(minQuoteAmount);
 
@@ -76,9 +80,9 @@ const pumpSwapParamTest = async () => {
 
     console.log(await connection.simulateTransaction(tx));
 
-    const sig = await sendAndConfirmTransaction(connection, tx, [payer])
+    // const sig = await sendAndConfirmTransaction(connection, tx, [payer])
 
-    console.log(sig);
+    // console.log(sig);
 }
 
 pumpSwapParamTest()

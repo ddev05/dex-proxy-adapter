@@ -25,6 +25,8 @@ const PUMPSWAP_MAINNET_FEE_ADDR = [
     new PublicKey("JCRGumoE9Qi5BBgULTgdgTLjSgkCMSbF62ZZfGs84JeU"),
 ]
 
+const PUMPSWAP_POOL = "pool";
+
 const PUMPSWAP_GLOBAL_CONFIG = "global_config";
 const PUMPSWAP_EVENT_AUTH = "__event_authority";
 
@@ -33,5 +35,6 @@ export {
     PUMPSWAP_MAINNET_FEE_ADDR,
     PUMPSWAP_PROGRAM_ADDR,
     PUMPSWAP_GLOBAL_CONFIG,
+    PUMPSWAP_POOL,
     PUMPSWAP_EVENT_AUTH
 }
