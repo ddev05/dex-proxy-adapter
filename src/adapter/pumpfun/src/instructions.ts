@@ -1,5 +1,6 @@
 import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
-import { BN } from "bn.js"
+import BigNumber from 'bignumber.js';
+import { bigNumberToLEBuffer } from '../../utils/bigNumber';
 
 export function pumpfunBuyIx(
     programId: PublicKey,
@@ -13,14 +14,14 @@ export function pumpfunBuyIx(
     tokenProgram: PublicKey,
     rent: PublicKey,
     eventAuthority: PublicKey,
-    amount: number,
-    maxSolCost: number
+    amount: BigNumber,
+    maxSolCost: BigNumber
 ): TransactionInstruction {
     const discriminator = Buffer.from([102, 6, 61, 18, 1, 218, 235, 234]); // "buy"
     const data = Buffer.concat([
         discriminator,
-        Buffer.from(Uint8Array.of(...new BN(amount).toArray('le', 8))),
-        Buffer.from(Uint8Array.of(...new BN(maxSolCost).toArray('le', 8))),
+        bigNumberToLEBuffer(amount),
+        bigNumberToLEBuffer(maxSolCost),
     ]);
 
     const keys = [
@@ -55,18 +56,18 @@ export function pumpfunSellIx(
     associatedUser: PublicKey,
     user: PublicKey,
     systemProgram: PublicKey,
-    rent : PublicKey,
+    rent: PublicKey,
     associatedTokenProgram: PublicKey,
     tokenProgram: PublicKey,
     eventAuthority: PublicKey,
-    amount: number,
-    minSolOutput: number
+    amount: BigNumber,
+    minSolOutput: BigNumber
 ): TransactionInstruction {
     const discriminator = Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]); // "sell"
     const data = Buffer.concat([
         discriminator,
-        Buffer.from(Uint8Array.of(...new BN(amount).toArray('le', 8))),
-        Buffer.from(Uint8Array.of(...new BN(minSolOutput).toArray('le', 8))),
+        bigNumberToLEBuffer(amount),
+        bigNumberToLEBuffer(minSolOutput),
     ]);
 
     const keys = [

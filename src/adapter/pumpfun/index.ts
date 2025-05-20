@@ -192,8 +192,8 @@ export class PumpfunAdapter implements IDexReadAdapter {
 
 
         if (inputMint.toBase58() == NATIVE_MINT.toBase58()) {
-            const tokenAmountOut = amountIn
-            const maxSolAmountCost = amountOut
+            const tokenAmountOut = BigNumber(amountIn)
+            const maxSolAmountCost = BigNumber(amountOut)
             return pumpfunBuyIx(
                 PUMPFUN_PROGRAM_ID,
                 pumpfunGlobal,
@@ -207,11 +207,11 @@ export class PumpfunAdapter implements IDexReadAdapter {
                 rent,
                 this.cluster == "mainnet" ? PUMPFUN_MAINNET_EVENT_AUTH : PUMPFUN_DEVNET_EVENT_AUTH,
                 tokenAmountOut,
-                maxSolAmountCost * 1.01,
+                maxSolAmountCost.times(1.01),
             )
         } else {
-            const tokenAmountIn = amountIn
-            const minSolOutput = amountOut
+            const tokenAmountIn = BigNumber(amountIn)
+            const minSolOutput = BigNumber(amountOut)
             return pumpfunSellIx(
                 PUMPFUN_PROGRAM_ID,
                 pumpfunGlobal,
