@@ -8,7 +8,7 @@ const pumpFunParam = {
         poolId: "14mXzvRcSc6sLALhyk7wwJYhF9J7fTJLVC2oE31fz7GN",
         inputMintAddr: "So11111111111111111111111111111111111111112",
         outPutMintAddr: "Cf3DM7Fm8L6rZfwxmnvAguJYc499qU6SuEgsx638pump",
-        inputAmount: 3576750000,
+        inputAmount: 10000000,
         // inputAmount: 0.000001 * LAMPORTS_PER_SOL,
         slippage: 0
     },
@@ -45,25 +45,25 @@ const pumpFunTest = async () => {
     const price = await pumpfunAdaptor.getPrice(reserve)
     console.log(price);
 
-    const minQuoteAmount = pumpfunAdaptor.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
-    const getSwapKeys = await PumpfunAdapter.getPoolsFromCa(connection, new PublicKey(outPutMintAddr), payer.publicKey)
+    const minQuoteAmount = pumpfunAdaptor.getSwapQuote(inputAmount, outPutMintAddr, reserve, 0.0)
 
-    console.log("Here is swap keys : ", getSwapKeys);
+    // const getSwapKeys = await PumpfunAdapter.getPoolsFromCa(connection, new PublicKey(outPutMintAddr), payer.publicKey)
+    // console.log("Here is swap keys : ", getSwapKeys);
 
 
-    const ata = getAssociatedTokenAddressSync(new PublicKey(outPutMintAddr), payer.publicKey)
-    const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey , ata , payer.publicKey , new PublicKey(outPutMintAddr))
+    const ata = getAssociatedTokenAddressSync(new PublicKey(inputAmount), payer.publicKey)
+    const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, new PublicKey(outPutMintAddr))
 
-    console.log(minQuoteAmount);
+    console.log("minQuoteAmount ", minQuoteAmount);
 
     const tx = new Transaction()
 
     const ix = await pumpfunAdaptor.getSwapInstruction(inputAmount, minQuoteAmount, {
-        inputMint: new PublicKey(inputMintAddr),
+        inputMint: new PublicKey(outPutMintAddr),
         payer: payer.publicKey
     })
 
-    tx.add(ataIx)
+    // tx.add(ataIx)
     tx.add(ix)
 
     tx.feePayer = payer.publicKey

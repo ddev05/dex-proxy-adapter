@@ -9,7 +9,7 @@ const raydiumLaunchPadParam = {
         poolId: "9pycax4NJg4RmuHB9NT9ZKAJ3mEsnqLEbPrKGS1whfxG",
         inputMintAddr: "So11111111111111111111111111111111111111112",
         outPutMintAddr: "2GukS36zyoR7ZMyHdRD3F1T4y5xYU1N953YnNmuEBray",
-        inputAmount: 209200000,
+        inputAmount: 0.00001 * LAMPORTS_PER_SOL,
         slippage: 0
     },
     devnet: {

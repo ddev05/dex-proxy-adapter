@@ -148,7 +148,7 @@ export class PumpfunAdapter implements IDexReadAdapter {
             let s = Math.floor((n - a) * (100 - slippage) / 100)
 
             // Return the net amount after deducting the fee
-            return s;
+            return Math.floor(s * 1.011);
         }
     }
 
@@ -189,8 +189,8 @@ export class PumpfunAdapter implements IDexReadAdapter {
 
 
         if (inputMint.toBase58() == NATIVE_MINT.toBase58()) {
-            const tokenAmountOut = BigNumber(amountIn)
-            const maxSolAmountCost = BigNumber(amountOut)
+            const tokenAmountOut = BigNumber(amountOut)
+            const maxSolAmountCost = BigNumber(amountIn)
             return pumpfunBuyIx(
                 PUMPFUN_PROGRAM_ID,
                 pumpfunGlobal,
@@ -204,7 +204,7 @@ export class PumpfunAdapter implements IDexReadAdapter {
                 rent,
                 this.cluster == "mainnet" ? PUMPFUN_MAINNET_EVENT_AUTH : PUMPFUN_DEVNET_EVENT_AUTH,
                 tokenAmountOut,
-                maxSolAmountCost.times(1.01),
+                maxSolAmountCost.times(1.011),
             )
         } else {
             const tokenAmountIn = BigNumber(amountIn)
@@ -224,7 +224,7 @@ export class PumpfunAdapter implements IDexReadAdapter {
                 TOKEN_PROGRAM_ID,
                 this.cluster == "mainnet" ? PUMPFUN_MAINNET_EVENT_AUTH : PUMPFUN_DEVNET_EVENT_AUTH,
                 tokenAmountIn,
-                minSolOutput
+                minSolOutput.div(1.011).integerValue()
             )
         }
     }
