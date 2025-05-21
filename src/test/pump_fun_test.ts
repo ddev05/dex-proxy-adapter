@@ -45,25 +45,25 @@ const pumpFunTest = async () => {
     const price = await pumpfunAdaptor.getPrice(reserve)
     console.log(price);
 
-    const minQuoteAmount = pumpfunAdaptor.getSwapQuote(inputAmount, outPutMintAddr, reserve, 0.0)
+    const minQuoteAmount = pumpfunAdaptor.getSwapQuote(inputAmount, inputMintAddr, reserve, 0.0)
     const getSwapKeys = await PumpfunAdapter.getPoolsFromCa(connection, new PublicKey(outPutMintAddr), payer.publicKey)
 
     console.log("Here is swap keys : ", getSwapKeys);
 
 
-    // const ata = getAssociatedTokenAddressSync(new PublicKey(outPutMintAddr), payer.publicKey)
-    // const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey , ata , payer.publicKey , new PublicKey(outPutMintAddr))
+    const ata = getAssociatedTokenAddressSync(new PublicKey(outPutMintAddr), payer.publicKey)
+    const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey , ata , payer.publicKey , new PublicKey(outPutMintAddr))
 
     console.log(minQuoteAmount);
 
     const tx = new Transaction()
 
     const ix = await pumpfunAdaptor.getSwapInstruction(inputAmount, minQuoteAmount, {
-        inputMint: new PublicKey(outPutMintAddr),
+        inputMint: new PublicKey(inputMintAddr),
         payer: payer.publicKey
     })
 
-    // tx.add(ataIx)
+    tx.add(ataIx)
     tx.add(ix)
 
     tx.feePayer = payer.publicKey

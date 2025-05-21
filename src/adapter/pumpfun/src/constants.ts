@@ -1,4 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 
 const PUMPFUN_PROGRAM_ID = new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P")
 
@@ -18,6 +19,8 @@ const PUMPFUN_POOL_AUTH = "pool-authority";
 const BONDING_CURVE_SEED = "bonding-curve"
 const PUMPFUN_GLOBAL = "global"
 const PUMPFUN_CREATOR_VAULT = "creator-vault"
+
+export const FEE_RATE_DENOMINATOR_VALUE = BigNumber(1_000_000);
 
 export {
     PUMPFUN_PROGRAM_ID,

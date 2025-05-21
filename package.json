@@ -9,7 +9,8 @@
     "ray-clmm": "ts-node src/test/raydium_clmm_test.ts",
     "pump-fun": "ts-node src/test/pump_fun_test.ts",
     "meteora-dyn": "ts-node src/test/meteora_dyn_test.ts",
-    "test": "npm run pump-amm"
+    "ray-pump": "ts-node src/test/raydium_launchpad.ts",
+    "test": "npm run ray-pump"
   },
   "repository": {
     "type": "git",
