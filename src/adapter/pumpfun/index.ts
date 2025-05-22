@@ -191,7 +191,7 @@ export class PumpfunAdapter implements IDexReadAdapter {
       // Calculate the amount of tokens to be purchased
       let s = virtualTokenReserves - r;
 
-      s = Math.floor(((100 + slippage) * s) / 100);
+      s = Math.floor((1 - slippage) * s);
 
       // Return the minimum of the calculated tokens and real token reserves
       return s < realTokenReserves ? s : realTokenReserves;

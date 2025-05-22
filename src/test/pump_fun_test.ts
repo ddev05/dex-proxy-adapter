@@ -16,9 +16,9 @@ const pumpFunParam = {
   mainnet: {
     poolId: "14mXzvRcSc6sLALhyk7wwJYhF9J7fTJLVC2oE31fz7GN",
     inputMintAddr: "So11111111111111111111111111111111111111112",
-    outPutMintAddr: "Cf3DM7Fm8L6rZfwxmnvAguJYc499qU6SuEgsx638pump",
+    outPutMintAddr: "EsD4deLyommH2EY2N1hq7cVCHcuxYd35UC1w2PVRpump",
     inputAmount: 0.0001 * LAMPORTS_PER_SOL,
-    slippage: 0,
+    slippage: 10,
   },
   devnet: {
     poolId: "H2QbwERVNPPWX568MLdbEqE1wfdEijX8jUYAbKDKtw4X",
@@ -40,7 +40,7 @@ const pumpFunTest = async () => {
   const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } =
     pumpFunParam.mainnet;
 
-  const TARGET_MINT = outPutMintAddr;
+  const TARGET_MINT = inputMintAddr;
 
   const connection = new Connection(MAINNET_RPC, "processed");
   const pumpfunAdaptor = await PumpfunAdapter.create(
@@ -65,7 +65,7 @@ const pumpFunTest = async () => {
     slippage
   );
 
-  console.log("minQuoteAmount ", minQuoteAmount);
+  console.log("minQuoteAmount ", minQuoteAmount.toString());
 
   // const getSwapKeys = await PumpfunAdapter.getPoolsFromCa(connection, new PublicKey(outPutMintAddr), payer.publicKey)
   // console.log("Here is swap keys : ", getSwapKeys);
