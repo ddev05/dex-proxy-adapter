@@ -1,4 +1,4 @@
-import { FEE_RATE_DENOMINATOR_VALUE } from "../../pumpfun/src";
+import { FEE_RATE_DENOMINATOR_VALUE } from "../../pump-fun/src";
 import BigNumber from "bignumber.js";
 
 export function getAmountOut({

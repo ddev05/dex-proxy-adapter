@@ -11,6 +11,8 @@ const BUY_EXACT_IN_DISCRIMINATOR = Buffer.from([
 const RAYDIUM_LAUNCHLAB_MAINNET_ADDR = new PublicKey("LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj")
 const RAYDIUM_LAUNCHLAB_DEVNET_ADDR = new PublicKey("LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj")
 
+export const FEE_RATE_DENOMINATOR_VALUE = BigNumber(1_000_000);
+
 const LAUNCHPAD_AUTH_SEED = Buffer.from("vault_auth_seed", "utf8");
 const LAUNCHPAD_CONFIG_SEED = Buffer.from("global_config", "utf8");
 const LAUNCHPAD_POOL_SEED = Buffer.from("pool", "utf8");

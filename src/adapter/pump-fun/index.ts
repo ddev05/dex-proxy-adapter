@@ -11,40 +11,40 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
-import { PoolReserves } from "../types";
+
 import { IDexReadAdapter } from "../utils/iAdapter";
 import {
   BONDING_CURVE_SEED,
+  CREATOR_FEE_RATE,
   parseBondingCurve,
+  PROTOCOL_FEE_RATE,
   PumpBondingCurveInfo,
   PUMPFUN_CREATOR_VAULT,
-  PUMPFUN_DEVNET_EVENT_AUTH,
-  PUMPFUN_FEE_RECIPIENT,
   PUMPFUN_GLOBAL,
-  PUMPFUN_MAINNET_EVENT_AUTH,
-  PUMPFUN_PROGRAM_ID,
+  PUMPFUN_LIQ_SOL_DIFFERENCE,
+  PUMPFUN_LIQ_TOKEN_DIFFERENCE,
   pumpfunBuyIx,
   PumpfunKeys,
   pumpfunSellIx,
-  PumpfunSwapAccountKeys,
+  PumpfunSwapAccountKeys
 } from "./src";
+import { PoolReserves } from "../types";
+import { PUMPFUN_FEE_RECIPIENT, PUMPFUN_MAINNET_EVENT_AUTH, PUMPFUN_PROGRAM_ID } from "./src/addresses";
+
 
 export class PumpfunAdapter implements IDexReadAdapter {
   private connection: Connection;
-  private cluster: "mainnet" | "devnet";
   private poolInfo: PumpBondingCurveInfo | null;
   private bondingCurveAddr: PublicKey;
   private mintAddr: PublicKey;
 
   private constructor(
     connection: Connection,
-    cluster: "mainnet" | "devnet",
     poolInfo: PumpBondingCurveInfo | null,
     bondingCurveAddr: PublicKey,
     mintAddr: PublicKey
   ) {
     this.connection = connection;
-    this.cluster = cluster;
     this.bondingCurveAddr = bondingCurveAddr;
     this.poolInfo = poolInfo;
     this.mintAddr = mintAddr;
@@ -73,16 +73,12 @@ export class PumpfunAdapter implements IDexReadAdapter {
 
     return new PumpfunAdapter(
       connection,
-      cluster,
       poolInfo,
       bondingCurve,
       token_mint
     );
   }
 
-  getPoolKeys(): PumpBondingCurveInfo | null {
-    return this.poolInfo;
-  }
 
   static async getPoolsFromCa(
     connection: Connection,
@@ -136,14 +132,12 @@ export class PumpfunAdapter implements IDexReadAdapter {
   async getPoolReserves(): Promise<PoolReserves> {
     const data = await this.connection.getAccountInfo(this.bondingCurveAddr);
 
-    console.log(data);
-
     if (!data?.data) {
       return {
         token0: NATIVE_MINT.toBase58(),
         token1: this.mintAddr.toBase58(),
-        reserveToken0: 0,
-        reserveToken1: 0,
+        reserveToken0: BigNumber(0),
+        reserveToken1: BigNumber(0),
       };
     }
 
@@ -152,63 +146,71 @@ export class PumpfunAdapter implements IDexReadAdapter {
     return {
       token0: NATIVE_MINT.toBase58(),
       token1: this.mintAddr.toBase58(),
-      reserveToken0: Number(this.poolInfo.real_sol_reserves),
-      reserveToken1: Number(this.poolInfo.real_token_reserves),
+      reserveToken0: this.poolInfo.real_sol_reserves,
+      reserveToken1: this.poolInfo.real_token_reserves,
     };
   }
 
-  async getPrice(reserve: PoolReserves): Promise<number> {
-    const { reserveToken0: reserveBase, reserveToken1: reserveQuote } = reserve;
+  getPrice(): number {
     if (!this.poolInfo) return 0;
 
-    console.log(reserveBase, reserveQuote);
+    const reserveBase = this.poolInfo.real_token_reserves
+    const reserveQuote = this.poolInfo.real_sol_reserves
 
-    return reserveBase / reserveQuote;
+    return reserveQuote.div(reserveBase).toNumber();
   }
 
-  getSwapQuote(
-    baseAmountIn: number,
-    inputMint: string,
-    reserve: PoolReserves,
-    slippage: number = 0
-  ): number {
-    const { reserveToken0: realSolReserves, reserveToken1: realTokenReserves } =
-      reserve;
+  getSwapQuote(baseAmountIn: number, inputMint: string, slippage: number = 0): number {
+    if (baseAmountIn === 0) throw new Error("Trying to proceed with zero amount");
+    if (!this.poolInfo) throw new Error("Pool info is not loaded");
 
-    const virtualTokenReserves = 279_900_000_000_000 + realTokenReserves;
-    const virtualSolReserves = 30_000_000_000 + realSolReserves;
+    const realTokenReserves = this.poolInfo.real_token_reserves; // BigNumber
+    const realSolReserves = this.poolInfo.real_sol_reserves;     // BigNumber
 
-    if (inputMint == NATIVE_MINT.toBase58()) {
-      // Calculate the product of virtual reserves
-      let n = virtualSolReserves * virtualTokenReserves;
+    const virtualTokenReserves = PUMPFUN_LIQ_TOKEN_DIFFERENCE.plus(realTokenReserves);
+    const virtualSolReserves = PUMPFUN_LIQ_SOL_DIFFERENCE.plus(realSolReserves);
 
-      // Calculate the new virtual sol reserves after the purchase
-      let i = virtualSolReserves + baseAmountIn;
+    const baseAmount = new BigNumber(baseAmountIn);
+    const slippageBN = new BigNumber(slippage);
+    const hundred = new BigNumber(100);
 
-      // Calculate the new virtual token reserves after the purchase
-      let r = n / i + 1;
+    if (inputMint === NATIVE_MINT.toBase58()) {
+      // Calculate product of virtual reserves
+      const n = virtualSolReserves.times(virtualTokenReserves);
 
-      // Calculate the amount of tokens to be purchased
-      let s = virtualTokenReserves - r;
+      // New virtual sol reserves after purchase
+      const i = virtualSolReserves.plus(baseAmount);
 
-      s = Math.floor((1 - slippage) * s);
+      // New virtual token reserves after purchase
+      const r = n.div(i).plus(1);
 
-      // Return the minimum of the calculated tokens and real token reserves
-      return s < realTokenReserves ? s : realTokenReserves;
+      // Tokens to be purchased
+      let s = virtualTokenReserves.minus(r);
+
+      // Apply slippage and floor
+      s = s.times(hundred.plus(slippageBN)).dividedToIntegerBy(hundred);
+
+      // Return minimum between calculated and real reserves
+      return BigNumber.minimum(s, realTokenReserves).toNumber();
     } else {
-      // Calculate the proportional amount of virtual sol reserves to be received
-      let n =
-        (baseAmountIn * virtualSolReserves) /
-          (virtualTokenReserves + baseAmountIn) -
-        1;
+      // Calculate proportional amount of virtual sol reserves to be received
+      const numerator = baseAmount.times(virtualSolReserves);
+      const denominator = virtualTokenReserves.plus(baseAmount);
+      const n = numerator.div(denominator).minus(1);
 
-      // Calculate the fee amount in the same units
-      let a = (n * 100) / 10000 + 1;
+      // Calculate fee amount in same units
+      const a = n.times(100).div(10000).plus(1);
 
-      let s = Math.floor((n - a) * (1 - slippage));
+      // Amount after fee and slippage
+      let s = n.minus(a).times(hundred.minus(slippageBN)).dividedToIntegerBy(hundred);
 
-      // Return the net amount after deducting the fee
-      return Math.floor(s * 1.011);
+      // Apply protocol and creator fees
+      const feeRate = new BigNumber(PROTOCOL_FEE_RATE).plus(CREATOR_FEE_RATE);
+      const multiplier = new BigNumber(1).plus(feeRate);
+
+      s = s.times(multiplier).integerValue(BigNumber.ROUND_FLOOR);
+
+      return s.toNumber();
     }
   }
 
@@ -217,51 +219,29 @@ export class PumpfunAdapter implements IDexReadAdapter {
     amountOut: number,
     swapAccountkey: PumpfunSwapAccountKeys
   ): TransactionInstruction {
-    const { inputMint, payer } = swapAccountkey;
+    const {
+      inputMint,
+      payer,
+    } = swapAccountkey;
 
     if (!this.poolInfo) {
       throw new Error("Pool info not loaded.");
     }
 
-    const [pumpfunGlobal] = PublicKey.findProgramAddressSync(
-      [Buffer.from(PUMPFUN_GLOBAL)],
-      PUMPFUN_PROGRAM_ID
-    );
+    const [pumpfunGlobal] = PublicKey.findProgramAddressSync([Buffer.from(PUMPFUN_GLOBAL)], PUMPFUN_PROGRAM_ID)
 
-    let outputMint: PublicKey;
-    if (inputMint == NATIVE_MINT) {
-      outputMint = this.mintAddr;
-    } else {
-      outputMint = NATIVE_MINT;
-    }
+    const associatedPayerAta = getAssociatedTokenAddressSync(this.mintAddr, payer);
 
-    const associatedPayerAta = getAssociatedTokenAddressSync(
-      this.mintAddr,
-      payer
-    );
-
-    const associatedBondingCurve = getAssociatedTokenAddressSync(
-      this.mintAddr,
-      this.bondingCurveAddr,
-      true
-    );
+    const associatedBondingCurve = getAssociatedTokenAddressSync(this.mintAddr, this.bondingCurveAddr, true);
 
     const [rent] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from(PUMPFUN_CREATOR_VAULT),
-        this.poolInfo.creator == undefined
-          ? NATIVE_MINT.toBuffer()
-          : this.poolInfo.creator.toBuffer(),
-      ],
+      [Buffer.from(PUMPFUN_CREATOR_VAULT), this.poolInfo.creator == undefined ? NATIVE_MINT.toBuffer() : this.poolInfo.creator.toBuffer()],
       PUMPFUN_PROGRAM_ID
     );
 
-    console.log(inputMint, NATIVE_MINT);
-    console.log(inputMint == NATIVE_MINT);
-
     if (inputMint.toBase58() == NATIVE_MINT.toBase58()) {
-      const tokenAmountOut = BigNumber(amountOut);
-      const maxSolAmountCost = BigNumber(amountIn);
+      const tokenAmountOut = BigNumber(amountOut)
+      const maxSolAmountCost = BigNumber(amountIn)
       return pumpfunBuyIx(
         PUMPFUN_PROGRAM_ID,
         pumpfunGlobal,
@@ -273,15 +253,13 @@ export class PumpfunAdapter implements IDexReadAdapter {
         payer,
         TOKEN_PROGRAM_ID,
         rent,
-        this.cluster == "mainnet"
-          ? PUMPFUN_MAINNET_EVENT_AUTH
-          : PUMPFUN_DEVNET_EVENT_AUTH,
+        PUMPFUN_MAINNET_EVENT_AUTH,
         tokenAmountOut,
-        maxSolAmountCost.times(1.011)
-      );
+        maxSolAmountCost.times(1.011),
+      )
     } else {
-      const tokenAmountIn = BigNumber(amountIn);
-      const minSolOutput = BigNumber(amountOut);
+      const tokenAmountIn = BigNumber(amountIn)
+      const minSolOutput = BigNumber(amountOut)
       return pumpfunSellIx(
         PUMPFUN_PROGRAM_ID,
         pumpfunGlobal,
@@ -295,12 +273,10 @@ export class PumpfunAdapter implements IDexReadAdapter {
         rent,
         ASSOCIATED_TOKEN_PROGRAM_ID,
         TOKEN_PROGRAM_ID,
-        this.cluster == "mainnet"
-          ? PUMPFUN_MAINNET_EVENT_AUTH
-          : PUMPFUN_DEVNET_EVENT_AUTH,
+        PUMPFUN_MAINNET_EVENT_AUTH,
         tokenAmountIn,
         minSolOutput.div(1.011).integerValue()
-      );
+      )
     }
   }
 }

@@ -1,8 +1,6 @@
-import { PublicKey } from "@solana/web3.js";
-import BigNumber from "bignumber.js";
+import { PublicKey } from "@solana/web3.js"
 
 const PUMPFUN_PROGRAM_ID = new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P")
-
 const PUMPFUN_FEE_RECIPIENT = [
     new PublicKey("7VtfL8fvgNfhz17qKRMjzQEXgbdpnHHHQRh54R9jP2RJ"),
     new PublicKey("7hTckgnGnLQR6sdH7YkqFTAA7VwTfYFaZ6EhEsU3saCX"),
@@ -15,20 +13,10 @@ const PUMPFUN_FEE_RECIPIENT = [
 
 const PUMPFUN_MAINNET_EVENT_AUTH = new PublicKey("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1")
 const PUMPFUN_DEVNET_EVENT_AUTH = new PublicKey("68yFSZxzLWJXkxxRGydZ63C6mHx1NLEDWmwN9Lb5yySg")
-const PUMPFUN_POOL_AUTH = "pool-authority";
-const BONDING_CURVE_SEED = "bonding-curve"
-const PUMPFUN_GLOBAL = "global"
-const PUMPFUN_CREATOR_VAULT = "creator-vault"
-
-export const FEE_RATE_DENOMINATOR_VALUE = BigNumber(1_000_000);
 
 export {
     PUMPFUN_PROGRAM_ID,
-    BONDING_CURVE_SEED,
-    PUMPFUN_GLOBAL,
     PUMPFUN_FEE_RECIPIENT,
-    PUMPFUN_POOL_AUTH,
     PUMPFUN_MAINNET_EVENT_AUTH,
-    PUMPFUN_DEVNET_EVENT_AUTH,
-    PUMPFUN_CREATOR_VAULT
+    PUMPFUN_DEVNET_EVENT_AUTH
 }

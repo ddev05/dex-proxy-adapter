@@ -1,53 +1,17 @@
-import {
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-} from "@solana/spl-token";
-import {
-  Connection,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  sendAndConfirmTransaction,
-  Transaction,
-} from "@solana/web3.js";
+import { PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
+import { payer } from "../config";
 import { PumpfunAdapter } from "../adapter";
-import { MAINNET_RPC, payer } from "../config";
+import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddress, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { connection } from "@/config/web3";
 
-const pumpFunParam = {
-  mainnet: {
-    poolId: "14mXzvRcSc6sLALhyk7wwJYhF9J7fTJLVC2oE31fz7GN",
-    inputMintAddr: "So11111111111111111111111111111111111111112",
-    outPutMintAddr: "EsD4deLyommH2EY2N1hq7cVCHcuxYd35UC1w2PVRpump",
-    inputAmount: 0.0001 * LAMPORTS_PER_SOL,
-    slippage: 10,
-  },
-  devnet: {
-    poolId: "H2QbwERVNPPWX568MLdbEqE1wfdEijX8jUYAbKDKtw4X",
-    inputMintAddr: "So11111111111111111111111111111111111111112",
-    outPutMintAddr: "9eY4FKSmPvYVq5WPUvjcuX8cpDLzMGbgUfPxnxQ8UjzP",
-    inputAmount: 1 * LAMPORTS_PER_SOL,
-    slippage: 0,
-  },
-  localnet: {
-    poolId: "14mXzvRcSc6sLALhyk7wwJYhF9J7fTJLVC2oE31fz7GN",
-    inputMintAddr: "So11111111111111111111111111111111111111112",
-    outPutMintAddr: "Cf3DM7Fm8L6rZfwxmnvAguJYc499qU6SuEgsx638pump",
-    inputAmount: 0.01 * LAMPORTS_PER_SOL,
-    slippage: 0,
-  },
-};
+
 
 const pumpFunTest = async () => {
-  const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } =
-    pumpFunParam.mainnet;
 
-  const TARGET_MINT = inputMintAddr;
+  const mintAddress = "Cf3DM7Fm8L6rZfwxmnvAguJYc499qU6SuEgsx638pump";
+  const inputAmount = 10000
 
-  const connection = new Connection(MAINNET_RPC, "processed");
-  const pumpfunAdaptor = await PumpfunAdapter.create(
-    connection,
-    outPutMintAddr,
-    "mainnet"
-  );
+  const pumpfunAdaptor = await PumpfunAdapter.create(connection, mintAddress)
 
   const poolInfo = pumpfunAdaptor.getPoolKeys();
   console.log(poolInfo);
@@ -55,35 +19,19 @@ const pumpFunTest = async () => {
   const reserve = await pumpfunAdaptor.getPoolReserves();
   console.log(reserve);
 
-  const price = await pumpfunAdaptor.getPrice(reserve);
+  const price = await pumpfunAdaptor.getPrice()
   console.log(price);
 
-  const minQuoteAmount = pumpfunAdaptor.getSwapQuote(
-    inputAmount,
-    TARGET_MINT,
-    reserve,
-    slippage
-  );
+  const minQuoteAmount = pumpfunAdaptor.getSwapQuote(inputAmount, mintAddress, 0.0)
 
-  console.log("minQuoteAmount ", minQuoteAmount.toString());
+  // const getSwapKeys = await PumpfunAdapter.getPoolsFromCa(connection, new PublicKey(mintAddress), payer.publicKey)
+  // console.log("Here is swap keys : ", getSwapKeys);
 
   // const getSwapKeys = await PumpfunAdapter.getPoolsFromCa(connection, new PublicKey(outPutMintAddr), payer.publicKey)
   // console.log("Here is swap keys : ", getSwapKeys);
 
-  const ata = getAssociatedTokenAddressSync(
-    new PublicKey(inputMintAddr),
-    payer.publicKey
-  );
-  const ata2 = getAssociatedTokenAddressSync(
-    new PublicKey(outPutMintAddr),
-    payer.publicKey
-  );
-  const ataIx1 = createAssociatedTokenAccountIdempotentInstruction(
-    payer.publicKey,
-    ata,
-    payer.publicKey,
-    new PublicKey(inputMintAddr)
-  );
+  const ata = getAssociatedTokenAddressSync(new PublicKey(inputAmount), payer.publicKey)
+  const ataIx = createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, payer.publicKey, new PublicKey(mintAddress))
 
   const ataIx2 = createAssociatedTokenAccountIdempotentInstruction(
     payer.publicKey,
@@ -95,7 +43,6 @@ const pumpFunTest = async () => {
   console.log("Input mint address : ", inputMintAddr);
   console.log("minQuoteAmount ", minQuoteAmount);
 
-  const tx = new Transaction();
 
   const ix = await pumpfunAdaptor.getSwapInstruction(
     inputAmount,
