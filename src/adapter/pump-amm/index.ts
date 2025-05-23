@@ -3,7 +3,7 @@ import { PoolReserves } from "../types";
 import { IDexReadAdapter } from "../utils/iAdapter";
 import { AccountLayout, MintLayout, NATIVE_MINT, getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { createPumpswapBuyIx, createPumpswapSellIx, parsePool, PUMPSWAP_DEVNET_FEE_ADDR, PUMPSWAP_EVENT_AUTH, PUMPSWAP_GLOBAL_CONFIG, PUMPSWAP_MAINNET_FEE_ADDR, PUMPSWAP_POOL, PUMPSWAP_PROGRAM_ADDR, PumpSwapAccount, PumpSwapKeys, PumpSwapPoolInfo } from "./src";
-import { BONDING_CURVE_SEED, parseBondingCurve, PumpBondingCurveInfo, PUMPFUN_POOL_AUTH, PUMPFUN_PROGRAM_ID } from "../pumpfun/src";
+import { BONDING_CURVE_SEED, parseBondingCurve, PumpBondingCurveInfo, PUMPFUN_POOL_AUTH, PUMPFUN_PROGRAM_ID } from "../pump-fun/src";
 
 export class PumpSwapAdapter implements IDexReadAdapter {
     private connection: Connection;

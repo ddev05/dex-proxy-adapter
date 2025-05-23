@@ -5,7 +5,7 @@ import { AccountLayout, getAssociatedTokenAddressSync, getMultipleAccounts, Mint
 
 import { buyExactInIx, calculateFee, getAmountOut, GlobalConfigAccount, LAUNCHPAD_AUTH_SEED, LAUNCHPAD_POOL_EVENT_AUTH_SEED, parseGlobalConfigAccount, parsePlatformConfigAccount, parsePoolStateAccount, PlatformConfigAccount, PoolStateAccount, RAYDIUM_LAUNCHLAB_MAINNET_ADDR, RaydiumLaunchPadAccountKeys, sellExactInIx } from "./src";
 import BigNumber from "bignumber.js";
-import { FEE_RATE_DENOMINATOR_VALUE } from "../pumpfun/src";
+import { FEE_RATE_DENOMINATOR_VALUE } from "../pump-fun/src";
 
 export class RaydiumLaunchlabAdapter implements IDexReadAdapter {
     private connection: Connection;

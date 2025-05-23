@@ -2,7 +2,7 @@ import { Connection, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Sys
 import { DEVNET_RPC, MAINNET_RPC, payer } from "../config";
 import { RaydiumClmmAdapter } from "../adapter";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { parseBondingCurve, PUMPFUN_PROGRAM_ID } from "../adapter/pumpfun/src";
+import { parseBondingCurve, PUMPFUN_PROGRAM_ID } from "../adapter/pump-fun/src";
 
 const raydiumClmmSwapParam = {
     mainnet: {

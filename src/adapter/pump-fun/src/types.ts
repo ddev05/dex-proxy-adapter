@@ -1,11 +1,12 @@
 import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 
 export interface PumpBondingCurveInfo {
-  virtual_token_reserves: bigint;
-  virtual_sol_reserves: bigint;
-  real_token_reserves: bigint;
-  real_sol_reserves: bigint;
-  token_total_supply: bigint;
+  virtual_token_reserves: BigNumber;
+  virtual_sol_reserves: BigNumber;
+  real_token_reserves: BigNumber;
+  real_sol_reserves: BigNumber;
+  token_total_supply: BigNumber;
   complete: boolean;
   creator?: PublicKey
 }
