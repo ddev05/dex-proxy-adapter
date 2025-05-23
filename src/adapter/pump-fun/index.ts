@@ -78,7 +78,10 @@ export class PumpfunAdapter implements IDexReadAdapter {
       token_mint
     );
   }
-
+  
+  getPoolKeys(): PumpBondingCurveInfo | null {
+    return this.poolInfo;
+  }
 
   static async getPoolsFromCa(
     connection: Connection,
