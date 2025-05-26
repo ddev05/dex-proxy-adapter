@@ -1,4 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
+import BigNumber from "bignumber.js";
 
 export interface PumpSwapPoolInfo {
     pool_bump: number;
@@ -9,17 +10,13 @@ export interface PumpSwapPoolInfo {
     lp_mint: PublicKey;
     pool_base_token_account: PublicKey;
     pool_quote_token_account: PublicKey;
-    lp_supply: bigint;
+    lp_supply: BigNumber;
+    coin_creator: PublicKey;
 }
 
 
 export interface PumpSwapAccount {
     inputMint: PublicKey;
-    pool: PublicKey;
-    baseMint: PublicKey;
-    quoteMint: PublicKey;
-    baseTokenProgram: PublicKey;
-    quoteTokenProgram: PublicKey;
     user: PublicKey;
 }
 

@@ -12,7 +12,7 @@ import {
 } from "@solana/web3.js";
 import BigNumber from "bignumber.js";
 
-import { IDexReadAdapter } from "../utils/iAdapter";
+import { IDexReadAdapter } from "@/adapter/utils";
 import {
   BONDING_CURVE_SEED,
   CREATOR_FEE_RATE,
@@ -26,11 +26,12 @@ import {
   pumpfunBuyIx,
   PumpfunKeys,
   pumpfunSellIx,
-  PumpfunSwapAccountKeys
+  PumpfunSwapAccountKeys,
+  PUMPFUN_FEE_RECIPIENT,
+  PUMPFUN_MAINNET_EVENT_AUTH,
+  PUMPFUN_PROGRAM_ID
 } from "./src";
-import { PoolReserves } from "../types";
-import { PUMPFUN_FEE_RECIPIENT, PUMPFUN_MAINNET_EVENT_AUTH, PUMPFUN_PROGRAM_ID } from "./src/addresses";
-
+import { PoolReserves } from "@/adapter/types";
 
 export class PumpfunAdapter implements IDexReadAdapter {
   private connection: Connection;
@@ -38,6 +39,14 @@ export class PumpfunAdapter implements IDexReadAdapter {
   private bondingCurveAddr: PublicKey;
   private mintAddr: PublicKey;
 
+  /**
+   * Private constructor. Use the static `create` method to instantiate this class.
+   *
+   * @param connection - Solana connection instance used for querying blockchain data.
+   * @param poolInfo - Parsed bonding curve info, if available.
+   * @param bondingCurveAddr - Public key of the bonding curve PDA.
+   * @param mintAddr - Public key of the token mint associated with the bonding curve.
+   */
   private constructor(
     connection: Connection,
     poolInfo: PumpBondingCurveInfo | null,
@@ -50,10 +59,16 @@ export class PumpfunAdapter implements IDexReadAdapter {
     this.mintAddr = mintAddr;
   }
 
+  /**
+   * Creates and initializes a PumpfunAdapter instance for a specific token mint.
+   *
+   * @param connection - Solana connection used to fetch bonding curve account data.
+   * @param tokenMint - Token mint address as a string.
+   * @returns A PumpfunAdapter instance with parsed bonding curve data, if curve is active.
+   */
   static async create(
     connection: Connection,
     tokenMint: String,
-    cluster: "mainnet" | "devnet" = "mainnet"
   ) {
     const token_mint = new PublicKey(tokenMint);
     const [bondingCurve] = PublicKey.findProgramAddressSync(
@@ -78,11 +93,24 @@ export class PumpfunAdapter implements IDexReadAdapter {
       token_mint
     );
   }
-  
+
+  /**
+  * Returns the parsed bonding curve data, if available.
+  *
+  * @returns The PumpBondingCurveInfo object or null if not available.
+  */
   getPoolKeys(): PumpBondingCurveInfo | null {
     return this.poolInfo;
   }
 
+  /**
+  * Builds all required PDA and ATA addresses for a swap transaction.
+  *
+  * @param connection - Solana connection to fetch on-chain data.
+  * @param mintAddr - Token mint address involved in the bonding curve.
+  * @param payer - Public key of the user performing the swap.
+  * @returns A full object of derived Pumpfun account keys required for a swap instruction.
+  */
   static async getPoolsFromCa(
     connection: Connection,
     mintAddr: PublicKey,
@@ -132,6 +160,11 @@ export class PumpfunAdapter implements IDexReadAdapter {
     };
   }
 
+  /**
+  * Fetches current reserves in the bonding curve for the native SOL and token mint.
+  *
+  * @returns An object containing token0/token1 and their respective reserves.
+  */
   async getPoolReserves(): Promise<PoolReserves> {
     const data = await this.connection.getAccountInfo(this.bondingCurveAddr);
 
@@ -139,8 +172,8 @@ export class PumpfunAdapter implements IDexReadAdapter {
       return {
         token0: NATIVE_MINT.toBase58(),
         token1: this.mintAddr.toBase58(),
-        reserveToken0: BigNumber(0),
-        reserveToken1: BigNumber(0),
+        reserveToken0: 0,
+        reserveToken1: 0,
       };
     }
 
@@ -149,11 +182,16 @@ export class PumpfunAdapter implements IDexReadAdapter {
     return {
       token0: NATIVE_MINT.toBase58(),
       token1: this.mintAddr.toBase58(),
-      reserveToken0: this.poolInfo.real_sol_reserves,
-      reserveToken1: this.poolInfo.real_token_reserves,
+      reserveToken0: this.poolInfo.real_sol_reserves.toNumber(),
+      reserveToken1: this.poolInfo.real_token_reserves.toNumber(),
     };
   }
 
+  /**
+  * Calculates the current price of 1 token in terms of SOL from bonding curve reserves.
+  *
+  * @returns Price as a number (SOL per token).
+  */
   getPrice(): number {
     if (!this.poolInfo) return 0;
 
@@ -163,6 +201,15 @@ export class PumpfunAdapter implements IDexReadAdapter {
     return reserveQuote.div(reserveBase).toNumber();
   }
 
+  /**
+ * Simulates a swap quote, determining how much of the output token will be received
+ * for a given input amount and optional slippage.
+ *
+ * @param baseAmountIn - Amount of input token to swap.
+ * @param inputMint - Input token mint address (as string).
+ * @param slippage - Slippage tolerance in percentage (e.g., 0.01 = 1%).
+ * @returns Expected output amount after slippage and fees.
+ */
   getSwapQuote(baseAmountIn: number, inputMint: string, slippage: number = 0): number {
     if (baseAmountIn === 0) throw new Error("Trying to proceed with zero amount");
     if (!this.poolInfo) throw new Error("Pool info is not loaded");
@@ -174,49 +221,45 @@ export class PumpfunAdapter implements IDexReadAdapter {
     const virtualSolReserves = PUMPFUN_LIQ_SOL_DIFFERENCE.plus(realSolReserves);
 
     const baseAmount = new BigNumber(baseAmountIn);
-    const slippageBN = new BigNumber(slippage);
-    const hundred = new BigNumber(100);
+    const slippageBN = new BigNumber(slippage); // Decimal (e.g., 0.01 for 1%)
 
     if (inputMint === NATIVE_MINT.toBase58()) {
-      // Calculate product of virtual reserves
+      // Buy tokens with SOL
       const n = virtualSolReserves.times(virtualTokenReserves);
-
-      // New virtual sol reserves after purchase
       const i = virtualSolReserves.plus(baseAmount);
-
-      // New virtual token reserves after purchase
       const r = n.div(i).plus(1);
-
-      // Tokens to be purchased
       let s = virtualTokenReserves.minus(r);
 
-      // Apply slippage and floor
-      s = s.times(hundred.plus(slippageBN)).dividedToIntegerBy(hundred);
+      // Apply slippage as decimal
+      s = s.times(slippageBN.minus(1).abs()).integerValue(BigNumber.ROUND_FLOOR);
 
-      // Return minimum between calculated and real reserves
       return BigNumber.minimum(s, realTokenReserves).toNumber();
     } else {
-      // Calculate proportional amount of virtual sol reserves to be received
+      // Sell tokens for SOL
       const numerator = baseAmount.times(virtualSolReserves);
       const denominator = virtualTokenReserves.plus(baseAmount);
       const n = numerator.div(denominator).minus(1);
 
-      // Calculate fee amount in same units
-      const a = n.times(100).div(10000).plus(1);
+      // Apply fixed 1% fee (adjustable if needed)
+      const a = n.times(PROTOCOL_FEE_RATE + CREATOR_FEE_RATE).plus(1);
 
-      // Amount after fee and slippage
-      let s = n.minus(a).times(hundred.minus(slippageBN)).dividedToIntegerBy(hundred);
+      let s = n.minus(a).times(new BigNumber(1).minus(slippageBN));
 
-      // Apply protocol and creator fees
-      const feeRate = new BigNumber(PROTOCOL_FEE_RATE).plus(CREATOR_FEE_RATE);
-      const multiplier = new BigNumber(1).plus(feeRate);
-
-      s = s.times(multiplier).integerValue(BigNumber.ROUND_FLOOR);
+      s = s.integerValue(BigNumber.ROUND_FLOOR);
 
       return s.toNumber();
     }
   }
 
+  /**
+   * Generates the appropriate transaction instruction to perform a buy or sell swap
+   * using the Pumpfun bonding curve program.
+   *
+   * @param amountIn - Input amount for the swap.
+   * @param amountOut - Desired or expected output amount.
+   * @param swapAccountkey - Object with all required account keys to build the swap instruction.
+   * @returns A `TransactionInstruction` that can be added to a transaction and sent.
+   */
   getSwapInstruction(
     amountIn: number,
     amountOut: number,

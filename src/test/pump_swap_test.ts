@@ -1,53 +1,42 @@
 import {
   createAssociatedTokenAccountIdempotentInstruction,
+  createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
+  NATIVE_MINT,
 } from "@solana/spl-token";
 import {
   Connection,
   LAMPORTS_PER_SOL,
   PublicKey,
+  sendAndConfirmTransaction,
+  SystemProgram,
   Transaction,
 } from "@solana/web3.js";
-import { PumpSwapAdapter } from "../adapter";
-import { MAINNET_RPC, payer } from "../config";
-
-const pumpAmmSwapParam = {
-  mainnet: {
-    poolId: "9P9EQxyBrJfhwhtt6wQZsB3VAs7LQwbUXjRS3YrYQp2P",
-    inputMintAddr: "So11111111111111111111111111111111111111112",
-    outPutMintAddr: "6QHdT4x1BWmuFKYPixXu5BitzvKPTzALLehi3Cmsend",
-    inputAmount: 10 * LAMPORTS_PER_SOL,
-    slippage: 0.2,
-  },
-  devnet: {
-    poolId: "H2QbwERVNPPWX568MLdbEqE1wfdEijX8jUYAbKDKtw4X",
-    inputMintAddr: "So11111111111111111111111111111111111111112",
-    outPutMintAddr: "9eY4FKSmPvYVq5WPUvjcuX8cpDLzMGbgUfPxnxQ8UjzP",
-    inputAmount: 1 * LAMPORTS_PER_SOL,
-    slippage: 0,
-  },
-  localnet: {
-    poolId: "9P9EQxyBrJfhwhtt6wQZsB3VAs7LQwbUXjRS3YrYQp2P",
-    inputMintAddr: "So11111111111111111111111111111111111111112",
-    outPutMintAddr: "6QHdT4x1BWmuFKYPixXu5BitzvKPTzALLehi3Cmsend",
-    inputAmount: 0.01 * LAMPORTS_PER_SOL,
-    slippage: 0,
-  },
-};
+import { PumpSwapAdapter } from "@/adapter";
+import { connection, payer } from "@/config";
 
 const pumpSwapParamTest = async () => {
-  const { inputAmount, inputMintAddr, outPutMintAddr, poolId, slippage } =
-    pumpAmmSwapParam.mainnet;
+  const mintAddress = "6QHdT4x1BWmuFKYPixXu5BitzvKPTzALLehi3Cmsend";
+  const INPUT_TOKEN_MINT = "6QHdT4x1BWmuFKYPixXu5BitzvKPTzALLehi3Cmsend" //* 6QHdT4x1BWmuFKYPixXu5BitzvKPTzALLehi3Cmsend / So11111111111111111111111111111111111111112
+  const inputAmount = 50000000000
+  const SLIPPAGE = 0
 
-  const connection = new Connection(MAINNET_RPC, "processed");
   const pumpSwapAdapter = await PumpSwapAdapter.create(
     connection,
-    poolId,
-    "mainnet"
+    mintAddress,
+    0
   );
 
+  const getSwapKeys = await PumpSwapAdapter.getPoolsFromCa(
+    connection,
+    new PublicKey(mintAddress),
+    payer.publicKey,
+    0
+  );
+  console.log("PUMPSWAP KEYS : ", getSwapKeys);
+
   const poolInfo = pumpSwapAdapter.getPoolKeys();
-  console.log(poolInfo);
+  console.log("PUMPSWAP INFO : ", poolInfo);
 
   if (
     !poolInfo?.pool_base_token_account ||
@@ -58,87 +47,90 @@ const pumpSwapParamTest = async () => {
     return;
 
   const reserve = await pumpSwapAdapter.getPoolReserves();
-  console.log(reserve);
+  console.log("PUMPSWAP RESERVE : ", reserve);
 
-  const price = await pumpSwapAdapter.getPrice(reserve);
-  console.log(price);
+  const price = pumpSwapAdapter.getPrice();
+  console.log("PUMPSWAP PRICE : ", price);
 
-  const minQuoteAmount = pumpSwapAdapter.getSwapQuote(
+  const minQuoteAmountWithSlippage = pumpSwapAdapter.getSwapQuote(
     inputAmount,
-    inputMintAddr,
-    reserve,
-    0.0
+    INPUT_TOKEN_MINT,
+    SLIPPAGE
   );
-
-  const getSwapKeys = await PumpSwapAdapter.getPoolsFromCa(
-    connection,
-    new PublicKey(outPutMintAddr),
-    payer.publicKey,
-    0
-  );
-
-  console.log("Here is swap keys : ", getSwapKeys);
-
-  console.log(minQuoteAmount);
-
-  const [baseAccount, quoteAccount] = await connection.getMultipleAccountsInfo([
-    poolInfo.pool_base_token_account,
-    poolInfo.pool_quote_token_account,
-  ]);
-
-  if (!baseAccount || !quoteAccount) {
-    throw new Error("One or both token accounts not found");
-  }
-
-  const ata = getAssociatedTokenAddressSync(
-    new PublicKey(inputMintAddr),
-    payer.publicKey
-  );
-  const ata2 = getAssociatedTokenAddressSync(
-    new PublicKey(outPutMintAddr),
-    payer.publicKey
-  );
-  const ataIx1 = createAssociatedTokenAccountIdempotentInstruction(
-    payer.publicKey,
-    ata,
-    payer.publicKey,
-    new PublicKey(inputMintAddr)
-  );
-
-  const ataIx2 = createAssociatedTokenAccountIdempotentInstruction(
-    payer.publicKey,
-    ata2,
-    payer.publicKey,
-    new PublicKey(outPutMintAddr)
-  );
+  console.log(`PUMPSWAP MinQuoteAmount With Slippage ${minQuoteAmountWithSlippage}`);
 
   const tx = new Transaction();
 
   const ix = await pumpSwapAdapter.getSwapInstruction(
     inputAmount,
-    minQuoteAmount,
+    minQuoteAmountWithSlippage,
     {
-      pool: new PublicKey(poolId),
-      baseMint: poolInfo.base_mint,
-      quoteMint: poolInfo.quote_mint,
-      inputMint: new PublicKey(inputMintAddr),
-      baseTokenProgram: baseAccount.owner,
-      quoteTokenProgram: quoteAccount.owner,
+      inputMint: new PublicKey(INPUT_TOKEN_MINT),
       user: payer.publicKey,
     }
   );
 
-  tx.add(ataIx1);
-  tx.add(ataIx2);
+  //~ IF wallet don't have ATA , please add below Instruction
+  // const [baseAccount, quoteAccount] = await connection.getMultipleAccountsInfo([
+  //   poolInfo.pool_base_token_account,
+  //   poolInfo.pool_quote_token_account,
+  // ]);
+
+  // if (!baseAccount || !quoteAccount) {
+  //   throw new Error("One or both token accounts not found");
+  // }
+
+  // const ata1 = getAssociatedTokenAddressSync(
+  //   new PublicKey(NATIVE_MINT),
+  //   payer.publicKey
+  // );
+  // const ata2 = getAssociatedTokenAddressSync(
+  //   new PublicKey(mintAddress),
+  //   payer.publicKey
+  // );
+  // const ataIx1 = createAssociatedTokenAccountIdempotentInstruction(
+  //   payer.publicKey,
+  //   ata1,
+  //   payer.publicKey,
+  //   new PublicKey(NATIVE_MINT)
+  // );
+
+  // const ataIx2 = createAssociatedTokenAccountIdempotentInstruction(
+  //   payer.publicKey,
+  //   ata2,
+  //   payer.publicKey,
+  //   new PublicKey(mintAddress)
+  // );
+
+  // tx.add(ataIx1);
+  // tx.add(ataIx2);
+  //~ END
+
+  //~ IF insufficient WSOL, uncomment below
+  // const transferIx = SystemProgram.transfer({
+  //   fromPubkey: payer.publicKey,
+  //   toPubkey: ata1,
+  //   lamports: inputAmount
+  // })
+
+  // const syncNativeIx = createSyncNativeInstruction(ata1)
+  
+  // tx.add(transferIx);
+  // tx.add(syncNativeIx);
+  //~ END
+  
   tx.add(ix);
 
   tx.feePayer = payer.publicKey;
 
   console.log(await connection.simulateTransaction(tx));
 
-  // const sig = await sendAndConfirmTransaction(connection, tx, [payer])
+  console.log(payer.publicKey.toBase58());
+  
 
-  // console.log(sig);
+  const sig = await sendAndConfirmTransaction(connection, tx, [payer])
+
+  console.log(sig);
 };
 
 pumpSwapParamTest();

@@ -3,6 +3,7 @@ import {
     TransactionInstruction,
     AccountMeta,
 } from "@solana/web3.js";
+import { CREATOR_FEE_RATE, PROTOCOL_FEE_RATE } from "./constants";
 
 export function createPumpswapBuyIx({
     programId,
@@ -22,6 +23,8 @@ export function createPumpswapBuyIx({
     systemProgram,
     associatedTokenProgram,
     eventAuthority,
+    coinCreatorVaultAta,
+    coinCreatorVaultAuthority,
     baseAmountOut,
     maxQuoteAmountIn,
 }: {
@@ -42,14 +45,16 @@ export function createPumpswapBuyIx({
     systemProgram: PublicKey;
     associatedTokenProgram: PublicKey;
     eventAuthority: PublicKey;
-    baseAmountOut: number | bigint;
-    maxQuoteAmountIn: number | bigint;
+    coinCreatorVaultAta: PublicKey;
+    coinCreatorVaultAuthority: PublicKey;
+    baseAmountOut: number;
+    maxQuoteAmountIn: number;
 }): TransactionInstruction {
     const discriminator = Buffer.from([102, 6, 61, 18, 1, 218, 235, 234]);
     const baseOut = Buffer.alloc(8);
     const maxQuoteIn = Buffer.alloc(8);
     baseOut.writeBigUInt64LE(BigInt(baseAmountOut));
-    maxQuoteIn.writeBigUInt64LE(BigInt(maxQuoteAmountIn));
+    maxQuoteIn.writeBigUInt64LE(BigInt(Math.ceil(maxQuoteAmountIn * (1 + PROTOCOL_FEE_RATE + CREATOR_FEE_RATE))));
     const data = Buffer.concat([discriminator, baseOut, maxQuoteIn]);
 
     const keys: AccountMeta[] = [
@@ -70,6 +75,8 @@ export function createPumpswapBuyIx({
         { pubkey: associatedTokenProgram, isSigner: false, isWritable: false },
         { pubkey: eventAuthority, isSigner: false, isWritable: false },
         { pubkey: programId, isSigner: false, isWritable: false },
+        { pubkey: coinCreatorVaultAta, isSigner: false, isWritable: true },
+        { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
     ];
 
     return new TransactionInstruction({
@@ -98,6 +105,8 @@ export function createPumpswapSellIx({
     systemProgram,
     associatedTokenProgram,
     eventAuthority,
+    coinCreatorVaultAta,
+    coinCreatorVaultAuthority,
     baseAmountIn,
     minQuoteAmountOut,
 }: {
@@ -118,14 +127,16 @@ export function createPumpswapSellIx({
     systemProgram: PublicKey;
     associatedTokenProgram: PublicKey;
     eventAuthority: PublicKey;
-    baseAmountIn: number | bigint;
-    minQuoteAmountOut: number | bigint;
+    coinCreatorVaultAta: PublicKey;
+    coinCreatorVaultAuthority: PublicKey;
+    baseAmountIn: number;
+    minQuoteAmountOut: number;
 }): TransactionInstruction {
     const discriminator = Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]);
     const baseIn = Buffer.alloc(8);
     const minQuoteOut = Buffer.alloc(8);
     baseIn.writeBigUInt64LE(BigInt(baseAmountIn));
-    minQuoteOut.writeBigUInt64LE(BigInt(minQuoteAmountOut));
+    minQuoteOut.writeBigUInt64LE(BigInt(Math.floor(minQuoteAmountOut * (1 - PROTOCOL_FEE_RATE - CREATOR_FEE_RATE)) - 2));
     const data = Buffer.concat([discriminator, baseIn, minQuoteOut]);
 
     const keys: AccountMeta[] = [
@@ -146,6 +157,8 @@ export function createPumpswapSellIx({
         { pubkey: associatedTokenProgram, isSigner: false, isWritable: false },
         { pubkey: eventAuthority, isSigner: false, isWritable: false },
         { pubkey: programId, isSigner: false, isWritable: false },
+        { pubkey: coinCreatorVaultAta, isSigner: false, isWritable: true },
+        { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
     ];
 
     return new TransactionInstruction({
